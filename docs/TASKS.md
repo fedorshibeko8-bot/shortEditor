@@ -80,8 +80,8 @@
   - [x] unit-тесты на валидацию и дефолты
 
 ### S1-02 · Схема БД и машина статусов
-- status: todo
-- owner: —
+- status: in_progress
+- owner: Copilot App fdb2bb91-6c82-4e74-82a8-1b26d76c9776, 2026-11-25
 - depends on: S1-01
 - area: `src/shorteditor/storage/`, `src/shorteditor/core/statuses.py`
 - acceptance:
