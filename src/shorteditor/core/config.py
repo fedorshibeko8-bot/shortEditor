@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 from threading import RLock
-from typing import Any
+from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -39,6 +39,7 @@ class ParserConfig(BaseModel):
     channels_blacklist: list[str] = Field(default_factory=list)
     title_keywords: list[str] = Field(default_factory=list)
     max_candidates_per_poll: int = 20
+    candidate_ttl_hours: int = Field(default=24, ge=1, le=168)
 
 
 class QueueConfig(BaseModel):
@@ -47,6 +48,12 @@ class QueueConfig(BaseModel):
     max_pending_candidates: int = 50
     max_concurrent_renders: int = 1
     max_attempts: int = 3
+
+
+class LlmNormalizeConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
 
 
 class TranscribeConfig(BaseModel):
@@ -59,7 +66,7 @@ class TranscribeConfig(BaseModel):
     word_timestamps: bool = True
     initial_prompt: str = ""
     glossary: dict[str, str] = Field(default_factory=dict)
-    llm_normalize: dict[str, bool] = Field(default_factory=lambda: {"enabled": False})
+    llm_normalize: LlmNormalizeConfig = Field(default_factory=lambda: LlmNormalizeConfig())
 
 
 class SubtitleHookConfig(BaseModel):
@@ -104,7 +111,7 @@ class RenderConfig(BaseModel):
 
     width: int = 1080
     height: int = 1920
-    fps: int = 30
+    fps: Literal["auto"] | int = "auto"
     video_codec: str = "libx264"
     preset: str = "medium"
     crf: int = 20
@@ -112,6 +119,16 @@ class RenderConfig(BaseModel):
     audio_bitrate: str = "192k"
     background_blur: BackgroundBlurConfig = Field(default_factory=BackgroundBlurConfig)
     fit: str = "contain"
+    max_size_mb: int = 45
+    crf_step: int = 4
+    max_size_retries: int = 2
+
+    @field_validator("fps")
+    @classmethod
+    def validate_fps(cls, value: Literal["auto"] | int) -> Literal["auto"] | int:
+        if value != "auto" and not 1 <= value <= 60:
+            raise ValueError("fps must be 'auto' or an integer from 1 to 60")
+        return value
 
 
 class PublishConfig(BaseModel):
@@ -122,6 +139,7 @@ class PublishConfig(BaseModel):
     meta_template: str = "{yyyy}/{mm}/{dd}/{clip_id}.meta.json"
     cleanup_temp_after_publish: bool = True
     cleanup_temp_after_reject: bool = True
+    retention_days: int = Field(default=180, ge=1)
 
 
 class NotificationsConfig(BaseModel):

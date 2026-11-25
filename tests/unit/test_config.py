@@ -47,14 +47,24 @@ def test_environment_settings_load_required_values(monkeypatch: pytest.MonkeyPat
 
 def test_config_defaults_match_example_values() -> None:
     config = AppConfig.model_validate({})
+    example = load_config("config.example.yaml")
 
     assert config.parser.poll_interval_minutes == 15
     assert config.parser.max_duration_seconds == 60
+    assert config.parser.candidate_ttl_hours == 24
     assert config.queue.max_concurrent_renders == 1
     assert config.transcribe.model == "medium"
+    assert config.transcribe.llm_normalize.enabled is False
     assert config.subtitles.font_size == 68
     assert config.subtitles.margin_v_percent == 60
     assert config.render.fit == "contain"
+    assert config.render.fps == "auto"
+    assert config.publish.retention_days == 180
+    assert config.render.max_size_mb == 45
+    assert config.render.crf_step == 4
+    assert config.render.max_size_retries == 2
+
+    assert example == config
 
 
 def test_invalid_config_is_rejected(tmp_path: Path) -> None:
@@ -76,3 +86,32 @@ def test_config_reload_applies_parser_changes(tmp_path: Path) -> None:
 
     assert first.parser.min_views == 100
     assert second.parser.min_views == 500
+
+
+@pytest.mark.parametrize("fps", ["auto", 60])
+def test_render_fps_accepts_auto_and_valid_integer(fps: str | int) -> None:
+    config = AppConfig.model_validate({"render": {"fps": fps}})
+
+    assert config.render.fps == fps
+
+
+def test_render_fps_rejects_120() -> None:
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate({"render": {"fps": 120}})
+
+
+@pytest.mark.parametrize("ttl", [0, 169])
+def test_candidate_ttl_rejects_out_of_range(ttl: int) -> None:
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate({"parser": {"candidate_ttl_hours": ttl}})
+
+
+def test_llm_normalize_defaults_to_disabled() -> None:
+    config = AppConfig.model_validate({})
+
+    assert config.transcribe.llm_normalize.enabled is False
+
+
+def test_unknown_config_key_is_rejected() -> None:
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate({"parser": {"unknown_key": True}})
