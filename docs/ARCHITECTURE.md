@@ -30,6 +30,7 @@ Twitch Helix ──► parser ──► SQLite (new)
 | Путь | Ответственность | Не должен знать про |
 |---|---|---|
 | `src/shorteditor/core/` | Загрузка `.env`/`config.yaml`, логирование, машина статусов, планировщик, лимиты и ретраи, диск-гард | Telegram, Twitch, ffmpeg |
+| `src/shorteditor/core/scheduler.py` | Планировщик джоб, advisory-lock, без внешних брокеров | Telegram, Twitch, ffmpeg |
 | `src/shorteditor/parser/` | Twitch Helix клиент, применение фильтров, дедуп по `clip_id`, формирование кандидатов | Рендер, R2 |
 | `src/shorteditor/bot/` | aiogram 3: middleware «только админ», хендлеры `/start`, `/status`, `/filters`, карточки и кнопки, уведомления | Прямые вызовы ffmpeg/yt-dlp |
 | `src/shorteditor/bot/keyboards/` | Inline-клавиатуры модерации | Бизнес-логика |
@@ -46,6 +47,8 @@ Twitch Helix ──► parser ──► SQLite (new)
 - `normalize(words) -> words` — опциональная LLM-нормализация текста (этап 5), сохраняет число слов.
 - `download(clip) -> Path`, `render(clip, words, options) -> Path`, `publish(path, meta) -> str` — шаги конвейера, каждый идемпотентен и ретраится.
 - `ClipRepository` — единственный способ менять статус клипа; переходы валидируются машиной статусов.
+- `validate(rendered: Path) -> None` — проверки ffprobe/SSIM.
+- `fit_size(path) -> Path` — ступенчатый crf.
 
 ## Инварианты
 
@@ -55,3 +58,5 @@ Twitch Helix ──► parser ──► SQLite (new)
 4. Исходник в кадре не кропается.
 5. Параллельных рендеров не больше `queue.max_concurrent_renders` (по умолчанию 1).
 6. TEMP чистится после `published`/`rejected`; при свободном месте < 10 % — алерт.
+7. Файл, уходящий в Telegram, ≤ 45 МБ либо помечен как документ.
+8. Кандидат без решения админа протухает по TTL и не блокирует очередь.
