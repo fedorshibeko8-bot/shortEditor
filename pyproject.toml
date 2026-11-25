@@ -1,0 +1,29 @@
+[project]
+name = "shorteditor"
+version = "0.1.0"
+description = "Telegram bot for Twitch clip editing and publishing"
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.11,<3",
+  "pydantic-settings>=2.9,<3",
+  "PyYAML>=6.0,<7",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8,<10",
+  "pytest-asyncio>=1,<2",
+]
+dev = [
+  "ruff>=0.11,<1",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100

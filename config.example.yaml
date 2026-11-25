@@ -14,6 +14,7 @@ parser:
   channels_blacklist: []
   title_keywords: []         # опционально; пусто = не фильтровать
   max_candidates_per_poll: 20
+  candidate_ttl_hours: 24
 
 queue:
   max_pending_candidates: 50
@@ -57,7 +58,7 @@ subtitles:
 render:
   width: 1080
   height: 1920
-  fps: 30
+  fps: auto
   video_codec: libx264
   preset: medium
   crf: 20
@@ -70,6 +71,9 @@ render:
   # Исходник вписывается целиком (без кропа и зума), свободное место
   # закрывается размытой копией того же кадра
   fit: contain
+  max_size_mb: 45
+  crf_step: 4
+  max_size_retries: 2
 
 publish:
   provider: r2
@@ -77,6 +81,7 @@ publish:
   meta_template: "{yyyy}/{mm}/{dd}/{clip_id}.meta.json"
   cleanup_temp_after_publish: true
   cleanup_temp_after_reject: true
+  retention_days: 180
 
 notifications:
   daily_digest_at: "21:00"
