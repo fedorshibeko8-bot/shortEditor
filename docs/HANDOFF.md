@@ -6,7 +6,7 @@
 **Обновлено:** 2026-11-25
 **Обновил:** Copilot App fdb2bb91-6c82-4e74-82a8-1b26d76c9776
 **Ветка:** `gr0knemthiswor1d-lab-shorteditor-project-task`
-**Последний коммит:** `561a01b docs: apply CR-001 (spec v1.2, new tasks, repo files)`
+**Последний коммит:** `d59c3e9 docs: handoff after CR-001`
 
 ---
 
