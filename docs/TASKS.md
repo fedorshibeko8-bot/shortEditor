@@ -4,21 +4,21 @@
 Правила ведения — в `AGENTS.md` §3–§5. Здесь только статусы и факты; обсуждения — в `docs/DECISIONS.md`.
 
 **Легенда статусов:** `todo` · `in_progress` · `blocked` · `review` · `done`
-**Последнее обновление:** 2026-11-25 · применён CR-001; SPEC v1.2; выполнены S0-04, S1-01, S1-02; `main` — актуальная и запушенная ветка.
+**Последнее обновление:** 2026-11-25 · CR-001, S0-04, S1-01 и S1-02 завершены; S1-03 заблокирована проверкой Docker Engine.
 
 ---
 
 ## Сводка
 
-| Этап | Задач | done | in_progress | todo |
-|---|---|---|---|---|
-| 0. Каркас репозитория | 4 | 4 | 0 | 0 |
-| 1. Каркас приложения | 8 | 2 | 0 | 6 |
-| 2. Парсер | 5 | 0 | 0 | 5 |
-| 3. Конвейер | 10 | 0 | 0 | 10 |
-| 4. Публикация | 4 | 0 | 0 | 4 |
-| 5. Доработки | 4 | 0 | 0 | 4 |
-| **Итого** | **35** | **6** | **0** | **29** |
+| Этап | Задач | done | in_progress | blocked | todo |
+|---|---:|---:|---:|---:|---:|
+| 0. Каркас репозитория | 4 | 4 | 0 | 0 | 0 |
+| 1. Каркас приложения | 8 | 2 | 0 | 1 | 5 |
+| 2. Парсер | 5 | 0 | 0 | 0 | 5 |
+| 3. Конвейер | 10 | 0 | 0 | 0 | 10 |
+| 4. Публикация | 4 | 0 | 0 | 0 | 4 |
+| 5. Доработки | 4 | 0 | 0 | 0 | 4 |
+| **Итого** | **35** | **6** | **0** | **1** | **28** |
 
 ---
 
@@ -92,18 +92,18 @@
   - [x] поле `clips.sent_to_admin_at` и индекс по `(status, sent_to_admin_at)` для скана TTL
 
 ### S1-03 · Docker-образ и compose
-- status: todo
-- owner: —
+- status: blocked
+- owner: Copilot App fdb2bb91-6c82-4e74-82a8-1b26d76c9776, 2026-11-25
 - depends on: S1-01
 - area: `docker/`, `docker-compose.yml`, `pyproject.toml`
 - acceptance:
-  - [ ] образ на python:3.11-slim + ffmpeg + шрифты Montserrat/Inter
-  - [ ] `fc-list` внутри контейнера видит оба шрифта
-  - [ ] тома для `data/` и `logs/`, `.env` через env_file
-  - [ ] `docker compose config` проходит, контейнер стартует
-  - [ ] volume для кеша моделей Whisper (`models/` → `/models`, `HF_HOME`) настроен
-  - [ ] проверка `fc-list` видит Montserrat ExtraBold и Inter Black
-  - [ ] образ не скачивает и не перекачивает модель Whisper при каждом пересоздании контейнера
+  - [x] Dockerfile на python:3.11-slim-bookworm, устанавливает ffmpeg/fontconfig/ca-certificates, пакет и шрифты OFL Montserrat ExtraBold/Inter Black; создаёт app uid 1000
+  - [ ] образ собран; внутри `ffmpeg -version`, фильтр `ass` присутствует, `fc-list` видит оба семейства
+  - [x] compose описывает data/logs/models volume, optional `.env`, TZ и одну службу `app`
+  - [x] `docker compose config` проходит; команда по умолчанию — `sleep infinity`, а не фиктивный бот
+  - [x] кеш моделей постоянный (`./models:/models`, `HF_HOME=/models`); нет загрузки моделей на этапе сборки
+  - [x] `pip install -e .` и импорты `shorteditor`, `aiosqlite`, `yaml` проходят
+  - [ ] запуск и пересоздание контейнера проверены на работающем Docker Engine
 
 ### S1-04 · Скелет бота (aiogram 3)
 - status: todo
@@ -429,7 +429,6 @@
 2026-11-25 · S1-01 · Copilot App fdb2bb91-6c82-4e74-82a8-1b26d76c9776 · схема конфига синхронизирована с SPEC v1.2: candidate_ttl_hours, retention_days, fps и параметры размера рендера, отдельная LlmNormalizeConfig; добавлены тесты дефолтов и валидации · нет блокеров · следующий шаг: S1-02 (схема БД и машина статусов)
 2026-11-25 · публикация · Copilot App fdb2bb91-6c82-4e74-82a8-1b26d76c9776 · ветка и локальные коммиты готовы, тесты зелёные · push заблокирован GitHub 403 для учетной записи с недостаточными правами на репозиторий · следующий шаг: предоставить владельцу репозитория или аккаунту push-доступ, затем запушить ветку и открыть/смержить PR
 2026-11-25 · S1-02 · Copilot App fdb2bb91-6c82-4e74-82a8-1b26d76c9776 · добавлены aiosqlite-схема clips/renders/events, идемпотентные миграции, поле sent_to_admin_at и индекс TTL, машина статусов и атомарный захват/освобождение задачи; unit-тесты матрицы статусов, миграции и claim выполнены · нет блокеров · следующий шаг: S1-03 (Docker-образ и compose)
+2026-11-25 · S1-03 · Copilot App fdb2bb91-6c82-4e74-82a8-1b26d76c9776 · добавлены пакетирование src-layout, Dockerfile, Compose, entrypoint, .dockerignore, официальные шрифты Google Fonts и D-017; pip install -e ., compose config, 28 тестов и Ruff прошли · сборка/проверки контейнера заблокированы: Docker CLI 29.9.3 есть, но Linux Engine недоступен на named pipe `//./pipe/dockerDesktopLinuxEngine`; точные ffmpeg в образе, размер и время сборки неизвестны; локальное имя ветки осталось прежним, app-инструмент отказался повторно переименовывать ветку · следующий шаг: запустить Docker Engine, закончить проверки S1-03, затем S1-04
 2026-11-25 · CR-001 · Copilot App fdb2bb91-6c82-4e74-82a8-1b26d76c9776 · применены правки SPEC v1.2, новые задачи S0-04/S1-08/S2-05/S3-09/S3-10, правки существующих задач, ADR D-012…D-016, структура ARCHITECTURE и служебные файлы LICENSE/.editorconfig/PR-template · нужно выполнить финальный чеклист и закоммитить handoff · следующий шаг: проверка секретов и diff перед двумя docs-коммитами
-2026-11-25 · merge/CR-001 · agent(merge/publish) · ветка `gr0knemthiswor1d-lab-shorteditor-project-task` смержена в `main` (merge-коммит `4fe2611`) и запушена в `origin`; чеклист CR-001 закрыт (SPEC v1.2, 5 новых задач, ADR D-012…D-016, LICENSE/.editorconfig/PR-шаблон); проверено: pytest 12 passed, `config.example.yaml` грузится, новые ключи читаются (`candidate_ttl_hours=24`, `retention_days=180`, `fps=auto`), блокер GitHub 403 снят — push идёт под `fedorshibeko8-bot` из основного каталога · локальная worktree-ветка не удалена (worktree ещё существует) · следующий шаг: S1-02 (схема БД и машина статусов)
-2026-11-25 · merge/S1-02 · agent(merge/publish) · S1-02 (aiosqlite-схема clips/renders/events, идемпотентные миграции, машина статусов, атомарный claim/release) смержена в `main` (merge-коммит `86ae333`) и запушена; проверено: pytest 28 passed на объединённом дереве; в S1-05 добавлены два обязательных пункта приёмки — снятие протухших `worker_claim` по `queue.claim_ttl_minutes` и инкремент `attempt_count`, иначе после kill -9 клип остаётся занятым навсегда · нет блокеров · следующий шаг: S1-03 (Docker-образ и compose)
 ```
