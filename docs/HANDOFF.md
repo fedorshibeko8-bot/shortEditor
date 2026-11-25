@@ -2,66 +2,54 @@
 
 **Обновлено:** 2026-11-25
 **Обновил:** Copilot App fdb2bb91-6c82-4e74-82a8-1b26d76c9776
-**Ветка:** `gr0knemthiswor1d-lab-shorteditor-project-task`
+**Ветка:** `gr0knemthiswor1d-lab-shorteditor-project-task` (переименование app-инструментом в `task/S1-03-docker` недоступно: ветка уже переименовывалась в этой сессии)
 
 ## 1. Что это за проект
 
-Telegram-бот ищет Twitch-клипы ≤ 60 сек, передает их админу на одобрение, монтирует вертикальное видео 1080×1920 с русскими субтитрами и загружает мастер в Cloudflare R2.
+Telegram-бот ищет Twitch-клипы ≤ 60 сек, передаёт их админу на одобрение, монтирует вертикальное видео 1080×1920 с русскими субтитрами и загружает мастер в Cloudflare R2.
 Полное ТЗ: `docs/SPEC.md` v1.2. Целевой объём — 3–5 видео/день на 2 vCPU / 4 GB.
 
 ## 2. Статус
 
-| Что | Состояние |
+| Задача/компонент | Состояние |
 |---|---|
-| Этап 0 — каркас репозитория | **done** |
-| CR-001 — правки SPEC v1.2 | **done** |
-| S0-04 — служебные файлы репозитория | **done** |
-| S1-01 — слой конфигурации | **done** |
-| S1-02 — схема БД и машина статусов | **done** |
-| Схема конфига SPEC v1.2 | синхронизирована |
-| Тесты | pytest зелёный локально |
-| Docker / compose | не проверялись |
-| FFmpeg | не проверялся |
+| CR-001, S0-04, S1-01, S1-02 | **done** |
+| S1-03 — Docker-образ и compose | **blocked**: Docker Engine не запущен, образ не собран |
+| Пакетирование src-layout | `pip install -e .` и импорты проходят |
+| Compose-файл | `docker compose config --quiet` проходит |
+| Тесты / lint | 28 тестов прошли; Ruff прошёл |
+| S1-04 и далее | не начаты |
 
-## 3. Где остановились
+## 3. S1-03: реализовано и не проверено
 
-Применён CR-001. В репозитории есть MIT LICENSE, `.editorconfig`, PR-шаблон и обновленные журналы.
-S1-01 включает загрузку `.env`, валидацию `config.yaml`, ручную перезагрузку `ConfigManager.reload()` и unit-тесты.
-Автоматический watcher и вызов перезагрузки из `/filters` относятся к S2-04.
-S1-02 завершена: SQLite-схема включает clips/renders/events, миграции идемпотентны, реализованы клип-статусы, поле sent_to_admin_at, индекс TTL и атомарный claim/release задачи.
-Следующая задача — S1-03. S1-03 и последующие задачи этапа не начаты.
+Добавлены Dockerfile на `python:3.11-slim-bookworm`, entrypoint с LF, compose с единственной службой `app`, `.dockerignore`, пакетирование setuptools, тома `data/`, `logs/`, `models/` и `HF_HOME=/models`.
+Команда по умолчанию — `sleep infinity`, а не фиктивный бот. После реализации точки входа в S1-04 надо заменить `command` сервиса `app` в `docker-compose.yml` на реальную команду запуска бота.
 
-Публикация заблокирована GitHub permissions: аккаунт репозитория при push авторизуется как `gr0knemthiswor1d-lab` и получает 403 `Permission denied`; ветка не запушена, PR не создан и не смержен.
+В `docker/fonts/` находятся статические экземпляры Montserrat ExtraBold (вес 800) и Inter Black (вес 900), созданные из официальных variable TTF Google Fonts; рядом сохранены соответствующие OFL-тексты лицензий. Dockerfile устанавливает их, затем запускает `fc-cache -f`.
 
-## 4. Следующая задача
+Проверки на этой машине:
+- Python 3.15.2: `pip install -e .` успешно; `import shorteditor, aiosqlite, yaml` печатает `ok`.
+- `docker compose config --quiet`: успешно; Docker Compose CLI v5.7.0.
+- `pytest -q`: 28 passed.
+- Ruff: All checks passed.
+- Docker CLI 29.9.3 установлен, но Docker Engine недоступен: отсутствует pipe `//./pipe/dockerDesktopLinuxEngine`.
+- `docker build`, запуск контейнера, ffmpeg/libass, `fc-list`, размер образа и длительность сборки **не проверены**. Версия ffmpeg внутри образа неизвестна.
 
-**S1-03 · Docker-образ и compose** (`docs/TASKS.md`).
-Открывать первым: `docker/`, `pyproject.toml` и раздел среды в `docs/SPEC.md`.
+После запуска Docker Engine выполнить:
+`docker build -t shorteditor:dev . -f docker/Dockerfile`;
+`docker compose config`;
+`docker compose up -d --build`;
+проверить `ffmpeg -version`, наличие фильтра `ass`, `fc-list` для Montserrat/Inter и импорт `shorteditor`, `aiosqlite`, `yaml`.
+Для проверки сохранения моделей создать файл-маркер в `./models`, выполнить `docker compose up -d --force-recreate app` и убедиться, что маркер доступен внутри `/models`; `HF_HOME` должен быть `/models`.
+
+## 4. Следующий шаг
+
+Сначала разблокировать и завершить проверку S1-03 на работающем Docker Engine; только затем переходить к **S1-04 · Скелет бота**.
+Открывать первым: `docker/Dockerfile`, `docker-compose.yml`, `docs/TASKS.md`.
 
 Порядок этапа 1:
 S1-01 → S1-02 → S1-03 → S1-04 → S1-05 → S1-08 → S1-06 → S1-07.
 
-## 5. Решения, которые нельзя менять молча
+## 5. Публикация
 
-Все — в `docs/DECISIONS.md`. Кратко: клипы ≤ 60 сек без тримминга; исходник не кропаем (`contain` + blur-фон); отказ только по клипу; LLM в v1 не участвует в таймкодах; субтитры идут через собственный `.ass` и libass.
-
-## 6. Открытые вопросы к заказчику
-
-Нет.
-
-## 7. Окружение разработчика
-
-- Windows-машина.
-- Worktree: `C:\Users\Lenovo\.copilot\repos\copilot-worktrees\shortEditor\gr0knemthiswor1d-lab-super-train`.
-- Python 3.15.2.
-- pytest 9.2.0.
-- git 2.56.
-- GitHub CLI доступен.
-- FFmpeg и Docker не проверялись.
-- Целевая среда — Ubuntu 22.04+ / docker-compose.
-
-## 8. Как проверить проект
-
-- `python -m pytest -q`
-- `python -c "from shorteditor.core.config import load_config; c=load_config('config.example.yaml'); print(c.render.fps, c.parser.candidate_ttl_hours, c.publish.retention_days)"`
-- После появления Docker-файлов: `docker compose config` и `docker compose up`.
+Ранее push в `fedorshibeko8-bot/shortEditor` блокировался 403: credential авторизовался как `gr0knemthiswor1d-lab` с недостаточными правами. Публикацию изменений S1-03 нужно повторить после устранения прав доступа.
