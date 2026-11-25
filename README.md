@@ -27,6 +27,7 @@ Python 3.11+ · aiogram 3 · aiosqlite (SQLite) · yt-dlp · faster-whisper · f
 | [`docs/TASKS.md`](docs/TASKS.md) | Журнал задач: сделано / в работе / запланировано |
 | [`docs/HANDOFF.md`](docs/HANDOFF.md) | Текущее состояние проекта и точка входа для нового агента/разработчика |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Журнал архитектурных решений (ADR) |
+| [`docs/CHANGES-v1.2.md`](docs/CHANGES-v1.2.md) | CR-001: ТЗ на правки документации и задач (входящее) |
 | [`AGENTS.md`](AGENTS.md) | Правила работы ИИ-агентов с этим репозиторием |
 
 ## Структура
