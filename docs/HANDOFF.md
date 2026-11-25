@@ -1,8 +1,8 @@
 # HANDOFF — текущее состояние проекта
 
 **Обновлено:** 2026-11-25
-**Обновил:** Copilot App fdb2bb91-6c82-4e74-82a8-1b26d76c9776
-**Ветка:** `gr0knemthiswor1d-lab-shorteditor-project-task`
+**Обновил:** agent (merge/publish) — после Copilot App fdb2bb91
+**Ветка:** `main` (работа из `gr0knemthiswor1d-lab-shorteditor-project-task` смержена)
 
 ## 1. Что это за проект
 
@@ -29,7 +29,7 @@ S1-01 включает загрузку `.env`, валидацию `config.yaml`
 Автоматический watcher и вызов перезагрузки из `/filters` относятся к S2-04.
 Следующая задача — S1-02. S1-02 и последующие задачи этапа не начаты.
 
-Публикация заблокирована GitHub permissions: аккаунт репозитория при push авторизуется как `gr0knemthiswor1d-lab` и получает 403 `Permission denied`; ветка не запушена, PR не создан и не смержен.
+**Публикация выполнена.** Ветка смержена в `main` (`4fe2611`) и запушена в `origin` из основного каталога под аккаунтом `fedorshibeko8-bot`. Блокер 403 из истории относился к другому GitHub-аккаунту, под которым авторизовался worktree Copilot; из `C:\Users\Lenovo\Desktop\shortEditor` push проходит. Локальная ветка `gr0knemthiswor1d-lab-shorteditor-project-task` оставлена как есть (worktree ещё существует), в `origin` её нет.
 
 ## 4. Следующая задача
 
@@ -51,9 +51,10 @@ S1-01 → S1-02 → S1-03 → S1-04 → S1-05 → S1-08 → S1-06 → S1-07.
 ## 7. Окружение разработчика
 
 - Windows-машина.
-- Worktree: `C:\Users\Lenovo\.copilot\repos\copilot-worktrees\shortEditor\gr0knemthiswor1d-lab-super-train`.
+- Основной каталог (источник истины, отсюда идёт push): `C:\Users\Lenovo\Desktop\shortEditor`, аккаунт `fedorshibeko8-bot`.
+- Worktree Copilot (там велась работа до merge): `C:\Users\Lenovo\.copilot\repos\copilot-worktrees\shortEditor\gr0knemthiswor1d-lab-super-train`.
 - Python 3.15.2.
-- pytest 9.2.0.
+- pytest 9.2.0 (12 тестов, зелёные).
 - git 2.56.
 - GitHub CLI доступен.
 - FFmpeg и Docker не проверялись.
