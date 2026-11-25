@@ -1,0 +1,12 @@
+# Единые LF-переводы строк: код и доки запускаются в Linux-контейнере
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.mp4 binary
+*.wav binary
+*.ass text eol=lf
+
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf

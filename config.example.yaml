@@ -1,0 +1,89 @@
+# Шаблон настроек поведения. Реальный config.yaml в git не попадает.
+# Фильтры парсера редактируются админом из Telegram (/filters) без перезапуска.
+
+parser:
+  poll_interval_minutes: 15
+  lookback_hours: 24
+  # Жёсткое ограничение ТЗ: берём только клипы не длиннее 60 секунд
+  max_duration_seconds: 60
+  min_duration_seconds: 5
+  min_views: 100
+  max_views: null            # null = без верхней границы
+  categories: []             # slug игр Twitch, напр. ["dota2", "just-chatting"]
+  channels_whitelist: []     # логины каналов-источников
+  channels_blacklist: []
+  title_keywords: []         # опционально; пусто = не фильтровать
+  max_candidates_per_poll: 20
+
+queue:
+  max_pending_candidates: 50
+  max_concurrent_renders: 1
+  max_attempts: 3
+
+transcribe:
+  provider: faster-whisper   # интерфейс transcribe(audio) -> words[]; альтернатива: groq
+  model: medium              # fallback: large-v3
+  fallback_model: large-v3
+  language: ru
+  word_timestamps: true
+  # Подсказка ASR: ники, игры, жаргон — заметно улучшает качество без LLM
+  initial_prompt: ""
+  glossary: {}               # детерминированные замены: {"контра": "CS", ...}
+  # LLM-нормализация текста — НЕ в v1, точка расширения (см. docs/DECISIONS.md)
+  llm_normalize:
+    enabled: false
+
+subtitles:
+  format: ass
+  mode: karaoke              # karaoke (слово-за-словом, \k) | lines (fallback)
+  font_family: Montserrat ExtraBold
+  font_fallback: Inter Black
+  font_size: 68
+  primary_color: "&H00FFFFFF"
+  outline_color: "&H00000000"
+  outline_px: 5
+  shadow_px: 0
+  margin_v_percent: 60       # вертикальный центр блока субтитров, 55–65 %
+  max_chars_per_line: 25
+  max_words_per_line: 6
+  max_lines: 2
+  uppercase: false
+  hook:
+    enabled: false
+    text: ""                 # либо задаётся админом при переделке
+    font_size: 56
+    position_y_percent: 12
+
+render:
+  width: 1080
+  height: 1920
+  fps: 30
+  video_codec: libx264
+  preset: medium
+  crf: 20
+  audio_codec: aac
+  audio_bitrate: 192k
+  background_blur:
+    enabled: true
+    mode: gblur            # gblur | boxblur
+    sigma: 20
+  # Исходник вписывается целиком (без кропа и зума), свободное место
+  # закрывается размытой копией того же кадра
+  fit: contain
+
+publish:
+  provider: r2
+  key_template: "{yyyy}/{mm}/{dd}/{clip_id}.mp4"
+  meta_template: "{yyyy}/{mm}/{dd}/{clip_id}.meta.json"
+  cleanup_temp_after_publish: true
+  cleanup_temp_after_reject: true
+
+notifications:
+  daily_digest_at: "21:00"
+  disk_free_alert_percent: 10
+
+logging:
+  level: INFO
+  dir: logs
+  rotation_mb: 50
+  backups: 5

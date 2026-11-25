@@ -1,0 +1,50 @@
+# secrets & local config
+.env
+.env.*
+!.env.example
+config.yaml
+secrets/
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# runtime data (downloads / audio / rendered / db)
+data/*
+!data/.gitkeep
+*.db
+*.db-journal
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# media artifacts
+*.mp4
+*.wav
+*.ass.preview.*
+*.log
+logs/
+
+# whisper models
+models/
+*.bin
+*.ctranslate2
+
+# editors / os
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
