@@ -59,8 +59,8 @@
 ## Этап 1 · Каркас приложения
 
 ### S1-01 · Слой конфигурации
-- status: todo
-- owner: —
+- status: in_progress
+- owner: Copilot App fdb2bb91-6c82-4e74-82a8-1b26d76c9776, 2026-11-25
 - depends on: —
 - area: `src/shorteditor/core/config.py`, `pyproject.toml`
 - acceptance:
