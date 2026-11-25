@@ -92,8 +92,8 @@
   - [x] поле `clips.sent_to_admin_at` и индекс по `(status, sent_to_admin_at)` для скана TTL
 
 ### S1-03 · Docker-образ и compose
-- status: todo
-- owner: —
+- status: in_progress
+- owner: Copilot App fdb2bb91-6c82-4e74-82a8-1b26d76c9776, 2026-11-25
 - depends on: S1-01
 - area: `docker/`, `docker-compose.yml`, `pyproject.toml`
 - acceptance:
