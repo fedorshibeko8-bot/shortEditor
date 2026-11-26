@@ -108,7 +108,7 @@
 
 ## D-019 · Graceful lifecycle бота и отдельное закрытие ресурсов
 **Дата:** 2026-11-26
-**Решение:** polling запускается только внутри `python -m shorteditor.bot`; пакет `shorteditor.bot` без побочных эффектов при импорте. SIGINT/SIGTERM переводят приложение в shutdown через `Dispatcher.stop_polling()`, затем закрываются Bot session и aiosqlite connection.
+**Решение:** polling запускается только внутри `python -m shorteditor.bot`; пакет `shorteditor.bot` без побочных эффектов при импорте. SIGINT/SIGTERM переводят приложение в shutdown через `Dispatcher.stop_polling()`, затем останавливается worker (D-020) и закрывается сессия Bot.
 **Контекст:** Docker entrypoint использует `exec`, поэтому сигнал контейнера должен доходить до Python-процесса; тесты middleware должны работать без сети.
 **Следствия:** запуск без обязательных переменных окружения завершается exit code 1 с коротким именем отсутствующего поля и без traceback; реальное Telegram polling остаётся отдельной runtime-проверкой.
 

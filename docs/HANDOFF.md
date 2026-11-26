@@ -1,8 +1,8 @@
 # HANDOFF — текущее состояние проекта
 
 **Обновлено:** 2026-11-26
-**Обновил:** Copilot CLI
-**Ветка:** `task/S1-05-worker-loop` (на базе чистой `main`; не опубликована)
+**Обновил:** agent (merge/verify)
+**Ветка:** `main` (= `origin/main`); ветка `task/S1-05-worker-loop` смержена
 
 ## 1. Что это за проект
 
@@ -16,13 +16,13 @@ Telegram-бот ищет Twitch-клипы ≤ 60 сек, передаёт их 
 | CR-001, S0-04, S1-01, S1-02 | **done** |
 | S1-03 — Docker-образ и compose | **done**, собрано и проверено |
 | S1-04 — Скелет бота | **done**, проверено локально и в контейнере |
-| S1-05 — Worker-loop и очередь из БД | **done**, тесты/линтер пройдены |
+| S1-05 — Worker-loop и очередь из БД | **done**, смержено и проверено |
 | S1-06, S1-07, S1-08 и далее | не начаты |
-| Тесты / lint | 39 passed; Ruff без замечаний |
+| Тесты / lint | 41 passed; Ruff без замечаний |
 
-Worker забирает только переданные ему статусы и обработчики; до появления реальных шагов конвейера он не запускается в приложении. Захват и увеличение `attempt_count` атомарны в `BEGIN IMMEDIATE`; TTL 15 минут очищается при старте и опросе очереди. Ошибки повторяются до `queue.max_attempts`, затем фиксируются как `failed` вместе с событием и одним уведомлением через интерфейс notifier. Успешный шаг освобождает claim и обнуляет счётчик. Остановка ждёт текущий шаг и не начинает следующий.
+Worker забирает только переданные ему статусы и обработчики; до появления реальных шагов конвейера он не запускается в приложении. Захват и увеличение `attempt_count` атомарны в `BEGIN IMMEDIATE`; TTL 15 минут очищается при старте и опросе очереди. Ошибки повторяются до `queue.max_attempts`, затем фиксируются как `failed` вместе с событием и одним уведомлением через интерфейс notifier. Успешный шаг освобождает claim и обнуляет счётчик. Остановка ждёт текущий шаг и не начинает следующий. Интервал опроса вынесен в `queue.poll_interval_seconds` (по умолчанию 5), в конструкторе worker проверяется, что каждый обрабатываемый статус допускает переход в `failed`, а сбой итерации (например, ошибка SQLite) логируется и не убивает цикл.
 
-Проверки S1-05: `python -m pytest -q` — 39 passed; `python -m ruff check .` — без замечаний; `python -c "import shorteditor.bot"` — успешно.
+Проверки S1-05: `python -m pytest -q` — 41 passed; `python -m ruff check .` — без замечаний; `python -c "import shorteditor.bot"` — успешно.
 
 Сборка образа: `docker build -t shorteditor:dev -f docker/Dockerfile .`, образ `shorteditor:dev` ~872 МБ, `python:3.11-slim-bookworm`.
 
@@ -48,6 +48,7 @@ Worker забирает только переданные ему статусы 
 - Реальное кеширование модели Whisper: volume `/models` и `HF_HOME=/models` настроены, но модель ещё не скачивалась (появится в S3-03).
 - Рендер `.ass` через `ass=` — до S3-06 нечего проверять.
 - Запуск под пользователем `app` на Linux-сервере с bind-mount: на Docker Desktop Windows права маскируются, на Ubuntu возможны проблемы с владельцем `./data`. Проверить при первом деплое на сервер.
+- `config.yaml` не копируется в образ и не монтируется в Compose. Пока worker не включён (нет обработчиков), это не проявляется; до подключения конвейера в S2 нужно решить, как доставлять конфиг в контейнер (монтирование `./config.yaml` или копирование при сборке).
 
 ## 4. Следующий шаг
 
@@ -65,7 +66,7 @@ Worker забирает только переданные ему статусы 
 - Worktree Copilot: `C:\Users\Lenovo\.copilot\repos\copilot-worktrees\shortEditor\gr0knemthiswor1d-lab-super-train` (ветка `gr0knemthiswor1d-lab-shorteditor-project-task`).
 - Python 3.15.2 (пакет требует ≥ 3.11; образ на 3.11 — расхождение версий учитывать в тестах).
 - Docker Desktop + Engine 29.9.3, Compose CLI v5.7.0.
-- pytest 9.2.0, 39 тестов.
+- pytest 9.2.0, 41 тест.
 
 ## 7. Как проверить, что проект «жив»
 
@@ -77,14 +78,14 @@ docker run --rm shorteditor:dev sh -c "ffmpeg -version | head -1; fc-match 'Mont
 docker run --rm shorteditor:dev; echo "exit=$?"
 ```
 
-Ожидаемо: 39 passed, конфиг валиден, ffmpeg 5.1.x, `Montserrat-ExtraBold.ttf`, последняя команда — `Startup error: required environment variables ...` и `exit=1`.
+Ожидаемо: 41 passed, конфиг валиден, ffmpeg 5.1.x, `Montserrat-ExtraBold.ttf`, последняя команда — `Startup error: required environment variables ...` и `exit=1`.
 
 ---
 
 _Шаблон для следующего обновления (не удалять):_
 ```
-Обновлено: 2026-11-26 · Copilot CLI · ветка task/S1-05-worker-loop
-Сделано: S1-05 — worker-loop, claim TTL, retries, notifier
-Осталось: S1-08 — начать с core/scheduler.py
-Блокеры: нет
+Обновлено: <дата> · <агент> · ветка <branch>
+Сделано: <ID> — <кратко>
+Осталось: <ID> — с чего продолжить, какой файл открыть первым
+Блокеры: <...>
 ```
