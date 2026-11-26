@@ -1,8 +1,8 @@
 # HANDOFF — текущее состояние проекта
 
 **Обновлено:** 2026-11-26
-**Обновил:** Copilot CLI
-**Ветка:** `task/S1-08-scheduler` (локально, не отправлялась в remote); код S1-08 в `7455dc4`
+**Обновил:** agent (merge/verify)
+**Ветка:** `main` (= `origin/main`); ветка `task/S1-08-scheduler` смержена
 
 ## 1. Что это за проект
 
@@ -17,19 +17,19 @@ Telegram-бот ищет Twitch-клипы ≤ 60 сек, передаёт их 
 | S1-03 — Docker-образ и compose | **done**, собрано и проверено |
 | S1-04 — Скелет бота | **done**, проверено локально и в контейнере |
 | S1-05 — Worker-loop и очередь из БД | **done**, смержено и проверено |
-| S1-08 — Планировщик фоновых задач | **done** на ветке `task/S1-08-scheduler` |
+| S1-08 — Планировщик фоновых задач | **done**, смержено и проверено |
 | S1-06, S1-07 и далее | не начаты |
-| Тесты / lint | 51 passed; Ruff без замечаний |
+| Тесты / lint | 52 passed; Ruff без замечаний |
 
 Worker забирает только переданные ему статусы и обработчики; до появления реальных шагов конвейера он не запускается в приложении. Захват и увеличение `attempt_count` атомарны в `BEGIN IMMEDIATE`; TTL 15 минут очищается при старте и опросе очереди. Ошибки повторяются до `queue.max_attempts`, затем фиксируются как `failed` вместе с событием и одним уведомлением через интерфейс notifier. Успешный шаг освобождает claim и обнуляет счётчик. Остановка ждёт текущий шаг и не начинает следующий. Интервал опроса вынесен в `queue.poll_interval_seconds` (по умолчанию 5), в конструкторе worker проверяется, что каждый обрабатываемый статус допускает переход в `failed`, а сбой итерации (например, ошибка SQLite) логируется и не убивает цикл.
 
 Проверки S1-05: `python -m pytest -q` — 41 passed; `python -m ruff check .` — без замечаний; `python -c "import shorteditor.bot"` — успешно.
 
-S1-08 добавляет `core/scheduler.py`: asyncio-задачи с интервалом или ежедневным временем в `settings.tz`, без немедленного первого запуска по умолчанию. Интервальные запуски сохраняют исходную сетку времени и пропускают пропущенные тики; длительность callback не накапливает дрейф. Jobs передаются приложению необязательной мапой: `parser_poll`, `daily_digest`, `candidate_ttl_scan`, `disk_check`; незаданные jobs не регистрируются. Проверка диска использует период TTL-скана (без нового ключа), порог остаётся в `notifications.disk_free_alert_percent`.
+S1-08 добавляет `core/scheduler.py`: asyncio-задачи с интервалом или ежедневным временем в `settings.tz`, без немедленного первого запуска по умолчанию. Интервальные запуски сохраняют исходную сетку времени и пропускают пропущенные тики; длительность callback не накапливает дрейф. Jobs передаются приложению необязательной мапой: `parser_poll`, `daily_digest`, `candidate_ttl_scan`, `disk_check`; незаданные jobs не регистрируются. Проверка диска использует собственный ключ `notifications.disk_check_minutes` (10 минут), порог остаётся в `notifications.disk_free_alert_percent`. Для `ZoneInfo` добавлена зависимость `tzdata` — без неё на Windows без системной базы часовых поясов `settings.tz` падал бы при старте.
 
 Для межпроцессной защиты добавлена схема v2 с `background_job_locks`: атомарное получение через `BEGIN IMMEDIATE`, срок lease 60 секунд, продление во время работы и снятие по завершении; протухшие строки чистятся при следующем захвате. При занятом lock job пропускается со структурным логом. Ошибка callback логируется с `event`, `stage`, `duration_ms`, `error`, отправляет одно уведомление и не завершает scheduler. Shutdown ждёт завершения текущего callback.
 
-Проверки S1-08: `python -m pytest -q` — 51 passed; `python -m ruff check .` — без замечаний; `python -c "import shorteditor.bot"` — успешно.
+Проверки S1-08: `python -m pytest -q` — 52 passed; `python -m ruff check .` — без замечаний; `python -c "import shorteditor.bot"` — успешно. В пересобранном образе проверено: `tzdata 2026.6` и `ZoneInfo("Europe/Moscow")` работают, `config.example.yaml` читается как `config.yaml`, все четыре job собираются с ожидаемыми типами расписаний, миграция даёт версии `[1, 2]` и таблицу `background_job_locks`, запуск без env по-прежнему даёт exit 1 с понятным сообщением.
 
 Сборка образа: `docker build -t shorteditor:dev -f docker/Dockerfile .`, образ `shorteditor:dev` ~872 МБ, `python:3.11-slim-bookworm`.
 
@@ -75,7 +75,7 @@ S1-08 добавляет `core/scheduler.py`: asyncio-задачи с интер
 - Worktree Copilot: `C:\Users\Lenovo\.copilot\repos\copilot-worktrees\shortEditor\gr0knemthiswor1d-lab-super-train` (ветка `gr0knemthiswor1d-lab-shorteditor-project-task`).
 - Python 3.15.2 (пакет требует ≥ 3.11; образ на 3.11 — расхождение версий учитывать в тестах).
 - Docker Desktop + Engine 29.9.3, Compose CLI v5.7.0.
-- pytest 9.2.0, 51 тест.
+- pytest 9.2.0, 52 теста.
 
 ## 7. Как проверить, что проект «жив»
 
@@ -87,7 +87,7 @@ docker run --rm shorteditor:dev sh -c "ffmpeg -version | head -1; fc-match 'Mont
 docker run --rm shorteditor:dev; echo "exit=$?"
 ```
 
-Ожидаемо: 51 passed, конфиг валиден, ffmpeg 5.1.x, `Montserrat-ExtraBold.ttf`, последняя команда — `Startup error: required environment variables ...` и `exit=1`.
+Ожидаемо: 52 passed, конфиг валиден, ffmpeg 5.1.x, `Montserrat-ExtraBold.ttf`, последняя команда — `Startup error: required environment variables ...` и `exit=1`.
 
 ---
 
