@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 import aiosqlite
@@ -75,11 +76,12 @@ async def test_repository_does_not_double_process_claim(tmp_path: Path) -> None:
     await repository.transition("clip-1", ClipStatus.SENT_TO_ADMIN)
     await repository.transition("clip-1", ClipStatus.APPROVED)
 
-    first = await repository.claim_next("worker-a", (ClipStatus.APPROVED,))
-    second = await repository.claim_next("worker-b", (ClipStatus.APPROVED,))
+    first, second = await asyncio.gather(
+        repository.claim_next("worker-a", (ClipStatus.APPROVED,)),
+        repository.claim_next("worker-b", (ClipStatus.APPROVED,)),
+    )
 
-    assert first == "clip-1"
-    assert second is None
+    assert {first, second} == {"clip-1", None}
 
 
 @pytest.mark.asyncio
@@ -94,3 +96,67 @@ async def test_repository_release_claim_allows_claim_again(tmp_path: Path) -> No
     assert await repository.claim_next("worker-a", (ClipStatus.APPROVED,))
     assert await repository.release_claim("clip-1", "worker-a")
     assert await repository.claim_next("worker-b", (ClipStatus.APPROVED,))
+
+
+@pytest.mark.asyncio
+async def test_expired_claim_is_released_and_reclaimed_with_new_attempt(tmp_path: Path) -> None:
+    db_path = tmp_path / "shorteditor.db"
+    await initialize_database(db_path)
+    repository = ClipRepository(db_path)
+    await repository.create_clip("clip-1")
+    await repository.transition("clip-1", ClipStatus.SENT_TO_ADMIN)
+    await repository.transition("clip-1", ClipStatus.APPROVED)
+    assert await repository.claim_next("worker-a", (ClipStatus.APPROVED,))
+
+    async with aiosqlite.connect(db_path) as db:
+        await db.execute(
+            "UPDATE clips SET claimed_at = '2000-01-01T00:00:00.000Z' WHERE clip_id = 'clip-1'"
+        )
+        await db.commit()
+
+    assert await repository.release_expired_claims(15) == 1
+    assert await repository.claim_next("worker-b", (ClipStatus.APPROVED,)) == "clip-1"
+    async with aiosqlite.connect(db_path) as db:
+        cursor = await db.execute(
+            "SELECT attempt_count FROM clips WHERE clip_id = 'clip-1'"
+        )
+        assert (await cursor.fetchone())[0] == 2
+
+
+@pytest.mark.asyncio
+async def test_fresh_claim_is_not_released(tmp_path: Path) -> None:
+    db_path = tmp_path / "shorteditor.db"
+    await initialize_database(db_path)
+    repository = ClipRepository(db_path)
+    await repository.create_clip("clip-1")
+    await repository.transition("clip-1", ClipStatus.SENT_TO_ADMIN)
+    await repository.transition("clip-1", ClipStatus.APPROVED)
+
+    assert await repository.claim_next("worker-a", (ClipStatus.APPROVED,))
+    assert await repository.release_expired_claims(15) == 0
+    assert await repository.claim_next("worker-b", (ClipStatus.APPROVED,)) is None
+
+
+@pytest.mark.asyncio
+async def test_claim_poll_persists_expired_release_even_without_matching_clip(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "shorteditor.db"
+    await initialize_database(db_path)
+    repository = ClipRepository(db_path)
+    await repository.create_clip("clip-1")
+    await repository.transition("clip-1", ClipStatus.SENT_TO_ADMIN)
+    await repository.transition("clip-1", ClipStatus.APPROVED)
+    assert await repository.claim_next("worker-a", (ClipStatus.APPROVED,))
+    async with aiosqlite.connect(db_path) as db:
+        await db.execute(
+            "UPDATE clips SET claimed_at = '2000-01-01T00:00:00.000Z' WHERE clip_id = 'clip-1'"
+        )
+        await db.commit()
+
+    assert await repository.claim_next("worker-b", (ClipStatus.TRANSCRIBING,)) is None
+    async with aiosqlite.connect(db_path) as db:
+        cursor = await db.execute(
+            "SELECT worker_claim, claimed_at FROM clips WHERE clip_id = 'clip-1'"
+        )
+        assert await cursor.fetchone() == (None, None)

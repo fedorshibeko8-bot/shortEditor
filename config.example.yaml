@@ -20,6 +20,7 @@ queue:
   max_pending_candidates: 50
   max_concurrent_renders: 1
   max_attempts: 3
+  claim_ttl_minutes: 15
 
 transcribe:
   provider: faster-whisper   # интерфейс transcribe(audio) -> words[]; альтернатива: groq

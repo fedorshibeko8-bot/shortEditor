@@ -5,6 +5,7 @@ import logging
 import signal
 import sqlite3
 import time
+from collections.abc import Mapping
 from pathlib import Path
 
 from aiogram import Bot, Dispatcher
@@ -15,18 +16,29 @@ from pydantic import ValidationError
 from shorteditor.bot.handlers import create_handlers
 from shorteditor.bot.logging import configure_logging
 from shorteditor.bot.middleware import AdminOnlyMiddleware
-from shorteditor.core.config import load_settings
+from shorteditor.bot.notifications import TelegramNotifier
+from shorteditor.core.config import load_config, load_settings
+from shorteditor.core.statuses import ClipStatus
+from shorteditor.core.worker import StepHandler, Worker
 from shorteditor.storage.database import initialize_database
+from shorteditor.storage.repository import ClipRepository
 
 DATABASE_PATH = Path("data/shorteditor.db")
 
 
 class BotApplication:
-    def __init__(self, database_path: str | Path = DATABASE_PATH) -> None:
+    def __init__(
+        self,
+        database_path: str | Path = DATABASE_PATH,
+        worker_handlers: Mapping[ClipStatus, StepHandler] | None = None,
+    ) -> None:
         self.database_path = Path(database_path)
+        self.worker_handlers = worker_handlers
         self.started_at = 0.0
         self.bot: Bot | None = None
         self.dispatcher: Dispatcher | None = None
+        self.worker: Worker | None = None
+        self.worker_task: asyncio.Task[None] | None = None
         self._stopping = asyncio.Event()
 
     async def start(self) -> None:
@@ -51,6 +63,19 @@ class BotApplication:
             "bot_started",
             extra={"event": "bot_started", "stage": "startup"},
         )
+
+        if self.worker_handlers:
+            config = load_config()
+            self.worker = Worker(
+                repository=ClipRepository(self.database_path),
+                statuses=tuple(self.worker_handlers),
+                handlers=self.worker_handlers,
+                poll_interval_seconds=1,
+                claim_ttl_minutes=config.queue.claim_ttl_minutes,
+                max_attempts=config.queue.max_attempts,
+                notifier=TelegramNotifier(self.bot, settings.telegram_admin_id),
+            )
+            self.worker_task = asyncio.create_task(self.worker.run(), name="clip-worker")
 
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):
@@ -84,13 +109,22 @@ class BotApplication:
             self.dispatcher.stop_polling()
 
     async def close(self) -> None:
-        if self.bot is not None:
-            await self.bot.session.close()
-            self.bot = None
-        logging.getLogger(__name__).info(
-            "bot_shutdown_complete",
-            extra={"event": "bot_shutdown_complete", "stage": "shutdown"},
-        )
+        if self.worker is not None:
+            self.worker.stop()
+        task = self.worker_task
+        self.worker_task = None
+        try:
+            if task is not None:
+                await task
+        finally:
+            self.worker = None
+            if self.bot is not None:
+                await self.bot.session.close()
+                self.bot = None
+            logging.getLogger(__name__).info(
+                "bot_shutdown_complete",
+                extra={"event": "bot_shutdown_complete", "stage": "shutdown"},
+            )
 
 
 async def run() -> int:
