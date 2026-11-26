@@ -9,6 +9,7 @@ description = "Telegram bot for Twitch clip editing and publishing"
 requires-python = ">=3.11"
 dependencies = [
   "aiosqlite>=0.20,<1",
+  "aiogram>=3,<4",
   "pydantic>=2.11,<3",
   "pydantic-settings>=2.9,<3",
   "PyYAML>=6.0,<7",
