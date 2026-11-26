@@ -7,7 +7,6 @@ import sqlite3
 import time
 from pathlib import Path
 
-import aiosqlite
 from aiogram import Bot, Dispatcher
 from aiogram.exceptions import AiogramError, TelegramNetworkError
 from aiogram.types import BotCommand
@@ -16,7 +15,7 @@ from pydantic import ValidationError
 from shorteditor.bot.handlers import create_handlers
 from shorteditor.bot.logging import configure_logging
 from shorteditor.bot.middleware import AdminOnlyMiddleware
-from shorteditor.core.config import AppConfig, load_settings
+from shorteditor.core.config import load_settings
 from shorteditor.storage.database import initialize_database
 
 DATABASE_PATH = Path("data/shorteditor.db")
@@ -28,16 +27,13 @@ class BotApplication:
         self.started_at = 0.0
         self.bot: Bot | None = None
         self.dispatcher: Dispatcher | None = None
-        self.database: aiosqlite.Connection | None = None
         self._stopping = asyncio.Event()
 
     async def start(self) -> None:
         self.started_at = time.monotonic()
         settings = load_settings()
-        AppConfig.model_validate({})
         configure_logging(settings.log_level)
         await initialize_database(self.database_path)
-        self.database = await aiosqlite.connect(self.database_path)
 
         self.bot = Bot(settings.telegram_bot_token)
         self.dispatcher = Dispatcher()
@@ -91,9 +87,6 @@ class BotApplication:
         if self.bot is not None:
             await self.bot.session.close()
             self.bot = None
-        if self.database is not None:
-            await self.database.close()
-            self.database = None
         logging.getLogger(__name__).info(
             "bot_shutdown_complete",
             extra={"event": "bot_shutdown_complete", "stage": "shutdown"},

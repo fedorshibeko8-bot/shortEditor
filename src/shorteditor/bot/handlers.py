@@ -11,8 +11,6 @@ from aiogram.types import Message
 from shorteditor import __version__
 from shorteditor.core.statuses import ClipStatus
 
-router = Router(name="bot")
-
 
 async def count_statuses(db: aiosqlite.Connection) -> dict[str, int]:
     cursor = await db.execute("SELECT status, COUNT(*) FROM clips GROUP BY status")
@@ -23,6 +21,8 @@ async def count_statuses(db: aiosqlite.Connection) -> dict[str, int]:
 
 
 def create_handlers(database_path: str | Path, started_at: float) -> Router:
+    router = Router(name="bot")
+
     @router.message(Command("start"))
     async def start_handler(message: Message) -> None:
         await message.answer("shortEditor готов к работе.")
