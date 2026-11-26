@@ -1,8 +1,8 @@
 # HANDOFF — текущее состояние проекта
 
 **Обновлено:** 2026-11-26
-**Обновил:** agent (merge/verify)
-**Ветка:** `main` (= `origin/main`), вся работа из worktree-ветки смержена
+**Обновил:** Copilot CLI 8d1e9d5c-…
+**Ветка:** `task/S1-04-bot-skeleton`
 
 ## 1. Что это за проект
 
@@ -14,9 +14,10 @@ Telegram-бот ищет Twitch-клипы ≤ 60 сек, передаёт их 
 | Задача/компонент | Состояние |
 |---|---|
 | CR-001, S0-04, S1-01, S1-02 | **done** |
-| S1-03 — Docker-образ и compose | **done**, собрано и проверено на Docker Engine 29.9.3 |
-| S1-04 и далее | не начаты |
-| Тесты / lint | 28 passed; Ruff без замечаний |
+| S1-03 — Docker-образ и compose | **done**, собрано и проверено |
+| S1-04 — Скелет бота | **done** |
+| S1-05 и далее | не начаты |
+| Тесты / lint | 31 passed; Ruff без замечаний |
 
 Сборка образа: `docker build -t shorteditor:dev -f docker/Dockerfile .`, образ `shorteditor:dev` ~872 МБ, `python:3.11-slim-bookworm`.
 
@@ -31,17 +32,17 @@ Telegram-бот ищет Twitch-клипы ≤ 60 сек, передаёт их 
 
 ## 3. Что НЕ проверено
 
+- Реальное Telegram polling с действительным токеном и Telegram API не проверено.
 - Реальное кеширование модели Whisper: volume `/models` и `HF_HOME=/models` настроены, но модель ещё не скачивалась (появится в S3-03).
 - Рендер `.ass` через `ass=` — до S3-06 нечего проверять.
 - Запуск под пользователем `app` на Linux-сервере с bind-mount: на Docker Desktop Windows права маскируются, на Ubuntu возможны проблемы с владельцем `./data`. Проверить при первом деплое на сервер.
-- Docker Compose CLI на этой машине сообщает версию v5.7.0; синтаксис `env_file: path/required` требует Compose ≥ 2.24 — на Ubuntu 22.04 проверить перед деплоем.
 
 ## 4. Следующий шаг
 
-**S1-04 · Скелет бота (aiogram 3)** (`docs/TASKS.md`).
-Открывать первым: `src/shorteditor/bot/`, `src/shorteditor/core/config.py`, `docker-compose.yml`.
-Обязательно: в `docker-compose.yml` заменить `command: sleep infinity` на реальную команду запуска приложения, сохранив `exec` в entrypoint (SIGTERM должен доходить до процесса).
-Порядок этапа 1: S1-01 → S1-02 → S1-03 → S1-04 → S1-05 → S1-08 → S1-06 → S1-07.
+**S1-05 · Worker-loop и очередь из БД** (`docs/TASKS.md`).
+Открывать первым: `src/shorteditor/core/worker.py`, `src/shorteditor/pipeline/`, `src/shorteditor/storage/repository.py`.
+Скелет бота завершён: точка входа `python -m shorteditor.bot`, middleware и `/start`/`/status` готовы.
+Порядок этапа 1 сохраняется: S1-01 → S1-02 → S1-03 → S1-04 → S1-05 → S1-08 → S1-06 → S1-07.
 
 ## 5. Публикация
 
@@ -53,7 +54,7 @@ Telegram-бот ищет Twitch-клипы ≤ 60 сек, передаёт их 
 - Worktree Copilot: `C:\Users\Lenovo\.copilot\repos\copilot-worktrees\shortEditor\gr0knemthiswor1d-lab-super-train` (ветка `gr0knemthiswor1d-lab-shorteditor-project-task`).
 - Python 3.15.2 (пакет требует ≥ 3.11; образ на 3.11 — расхождение версий учитывать в тестах).
 - Docker Desktop + Engine 29.9.3, Compose CLI v5.7.0.
-- pytest 9.2.0, 28 тестов.
+- pytest 9.2.0, 31 тест.
 
 ## 7. Как проверить, что проект «жив»
 
@@ -64,7 +65,7 @@ docker build -t shorteditor:dev -f docker/Dockerfile .
 docker run --rm shorteditor:dev sh -c "ffmpeg -version | head -1; fc-match 'Montserrat ExtraBold'"
 ```
 
-Ожидаемо: 28 passed, конфиг валиден, ffmpeg 5.1.x, `Montserrat-ExtraBold.ttf`.
+Ожидаемо: 31 passed, конфиг валиден, ffmpeg 5.1.x, `Montserrat-ExtraBold.ttf`.
 
 ---
 

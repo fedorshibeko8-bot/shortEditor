@@ -13,4 +13,4 @@ services:
       - ./data:/app/data
       - ./logs:/app/logs
       - ./models:/models
-    command: ["sleep", "infinity"]
+    command: ["python", "-m", "shorteditor.bot"]

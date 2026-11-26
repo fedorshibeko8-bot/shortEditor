@@ -105,3 +105,9 @@
 **Решение:** в образ добавляется `docker/fonts/fonts.conf`, который сопоставляет «Montserrat ExtraBold» → Montserrat и «Inter Black» → Inter (единственные начертания этих семейств в образе).
 **Контекст:** проверка на собранном образе показала, что `fc-match "Montserrat ExtraBold"` резолвится в `DejaVuSans.ttf`. Статические TTF из Google Fonts описывают начертание как family=Montserrat + style=ExtraBold, поэтому имя из `config.yaml` и будущего `.ass` не находилось, а libass подставляет fallback молча — субтитры отрендерились бы DejaVu.
 **Следствия:** имена в `config.yaml` можно оставлять человекочитаемыми; после пересборки `fc-match` возвращает `Montserrat-ExtraBold.ttf` и `Inter-Black.ttf`. Проверка `fc-match` входит в приёмку любой задачи, меняющей шрифты.
+
+## D-019 · Graceful lifecycle бота и отдельное закрытие ресурсов
+**Дата:** 2026-11-26
+**Решение:** polling запускается только внутри `python -m shorteditor.bot`; пакет `shorteditor.bot` без побочных эффектов при импорте. SIGINT/SIGTERM переводят приложение в shutdown через `Dispatcher.stop_polling()`, затем закрываются Bot session и aiosqlite connection.
+**Контекст:** Docker entrypoint использует `exec`, поэтому сигнал контейнера должен доходить до Python-процесса; тесты middleware должны работать без сети.
+**Следствия:** запуск без обязательных переменных окружения завершается exit code 1 с коротким именем отсутствующего поля и без traceback; реальное Telegram polling остаётся отдельной runtime-проверкой.

@@ -4,7 +4,7 @@
 Правила ведения — в `AGENTS.md` §3–§5. Здесь только статусы и факты; обсуждения — в `docs/DECISIONS.md`.
 
 **Легенда статусов:** `todo` · `in_progress` · `blocked` · `review` · `done`
-**Последнее обновление:** 2026-11-26 · S1-03 собрана и проверена на Docker Engine 29.9.3; этап 1 ведётся с `main`.
+**Последнее обновление:** 2026-11-26 · S1-04 реализован и переведён в `done`; следующая задача S1-05.
 
 ---
 
@@ -13,7 +13,7 @@
 | Этап | Задач | done | in_progress | blocked | todo |
 |---|---:|---:|---:|---:|---:|
 | 0. Каркас репозитория | 4 | 4 | 0 | 0 | 0 |
-| 1. Каркас приложения | 8 | 3 | 0 | 0 | 5 |
+| 1. Каркас приложения | 8 | 4 | 0 | 0 | 4 |
 | 2. Парсер | 5 | 0 | 0 | 0 | 5 |
 | 3. Конвейер | 10 | 0 | 0 | 0 | 10 |
 | 4. Публикация | 4 | 0 | 0 | 0 | 4 |
@@ -107,15 +107,15 @@
   - [x] исправлено при проверке: `fc-match "Montserrat ExtraBold"` уходил в DejaVu Sans; добавлен `docker/fonts/fonts.conf` с fontconfig-алиасами, после пересборки имена резолвятся в свои файлы
 
 ### S1-04 · Скелет бота (aiogram 3)
-- status: todo
-- owner: —
+- status: done
+- owner: Copilot CLI 8d1e9d5c-…, 2026-11-26
 - depends on: S1-01, S1-03
 - area: `src/shorteditor/bot/`
 - acceptance:
-  - [ ] middleware блокирует всех, кроме `TELEGRAM_ADMIN_ID`
-  - [ ] `/start`, `/status` отвечают
-  - [ ] структурные логи, корректный graceful shutdown
-  - [ ] тест middleware «чужой id → отказ»
+  - [x] middleware блокирует всех, кроме `TELEGRAM_ADMIN_ID`
+  - [x] `/start`, `/status` отвечают
+  - [x] структурные логи, корректный graceful shutdown
+  - [x] тест middleware «чужой id → отказ»
 
 ### S1-05 · Worker-loop и очередь из БД
 - status: todo
@@ -434,4 +434,5 @@
 2026-11-25 · CR-001 · Copilot App fdb2bb91-6c82-4e74-82a8-1b26d76c9776 · применены правки SPEC v1.2, новые задачи S0-04/S1-08/S2-05/S3-09/S3-10, правки существующих задач, ADR D-012…D-016, структура ARCHITECTURE и служебные файлы LICENSE/.editorconfig/PR-template · нужно выполнить финальный чеклист и закоммитить handoff · следующий шаг: проверка секретов и diff перед двумя docs-коммитами
 2026-11-25 · merge/CR-001 и merge/S1-02 · agent(merge/publish) · ветка worktree смержена в `main` (`4fe2611`, затем `86ae333`) и запушена; pytest 28 passed; в S1-05 добавлены критерии снятия протухших `worker_claim` и инкремента `attempt_count` · записи истории, добавленные при этих merge, были перезаписаны при разрешении конфликта следующего merge и восстановлены здесь · следующий шаг: S1-03
 2026-11-26 · merge/S1-03 + проверка · agent(merge/verify) · ветка worktree смержена в `main` (`143f6b7`); Docker Engine 29.9.3 поднят, образ собран: ffmpeg 5.1.9-0+deb12u1, фильтр `ass` (libass) есть, `fc-list` видит Montserrat ExtraBold и Inter Black, импорты ок, пользователь `app`, `/models` на запись, `docker compose config` проходит, образ ~872 МБ · найден и исправлен баг: `fc-match "Montserrat ExtraBold"` уходил в DejaVu Sans, добавлен `docker/fonts/fonts.conf` с алиасами, после пересборки имена резолвятся в свои файлы · не проверено: реальное кеширование модели Whisper и рендер `.ass` (появятся в S3-03/S3-06) · следующий шаг: S1-04 (скелет бота)
+2026-11-26 · S1-04 · Copilot CLI 8d1e9d5c-… · добавлены aiogram 3 точка входа и polling, middleware только для администратора, `/start` и `/status` с count по статусам SQLite, JSON-логирование и shutdown по SIGINT/SIGTERM с закрытием сессии БД/Bot; Compose запускает `python -m shorteditor.bot`, aiogram добавлен в pyproject, добавлены unit-тесты middleware и пустой БД · проверено: 31 pytest passed, Ruff без замечаний, import пакета без polling, Docker Compose config и запуск без обязательных env с exit 1 · реальное Telegram polling с токеном не проверено · следующий шаг: S1-05 (worker-loop и очередь из БД)
 ```
