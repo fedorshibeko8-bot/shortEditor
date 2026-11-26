@@ -7,7 +7,7 @@ import uuid
 from collections.abc import Awaitable, Callable, Collection, Mapping
 from typing import Protocol
 
-from shorteditor.core.statuses import ClipStatus
+from shorteditor.core.statuses import ALLOWED_TRANSITIONS, ClipStatus
 from shorteditor.storage.repository import ClipRepository
 
 StepHandler = Callable[[str], Awaitable[None]]
@@ -40,6 +40,9 @@ class Worker:
             raise ValueError("Worker requires at least one processable status")
         if not set(statuses) <= handlers.keys():
             raise ValueError("Every processable status must have a handler")
+        for status in statuses:
+            if ClipStatus.FAILED not in ALLOWED_TRANSITIONS[ClipStatus(status)]:
+                raise ValueError(f"Status {ClipStatus(status).value} cannot transition to failed")
 
         self.repository = repository
         self.statuses = tuple(statuses)
@@ -55,21 +58,37 @@ class Worker:
     async def run(self) -> None:
         await self.repository.release_expired_claims(self.claim_ttl_minutes)
         while not self._stop_event.is_set():
-            clip_id = await self.repository.claim_next(
-                self.worker_id,
-                self.statuses,
-                self.claim_ttl_minutes,
+            try:
+                clip_id = await self.repository.claim_next(
+                    self.worker_id,
+                    self.statuses,
+                    self.claim_ttl_minutes,
+                )
+                if clip_id is None:
+                    await self._wait_for_poll()
+                    continue
+                await self._process(clip_id)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                self._logger.exception(
+                    "worker_iteration_failed",
+                    extra={
+                        "event": "worker_iteration_failed",
+                        "stage": "worker",
+                        "error": str(exc) or exc.__class__.__name__,
+                    },
+                )
+                await self._wait_for_poll()
+
+    async def _wait_for_poll(self) -> None:
+        try:
+            await asyncio.wait_for(
+                self._stop_event.wait(),
+                timeout=self.poll_interval_seconds,
             )
-            if clip_id is None:
-                try:
-                    await asyncio.wait_for(
-                        self._stop_event.wait(),
-                        timeout=self.poll_interval_seconds,
-                    )
-                except TimeoutError:
-                    pass
-                continue
-            await self._process(clip_id)
+        except TimeoutError:
+            pass
 
     def stop(self) -> None:
         self._stop_event.set()

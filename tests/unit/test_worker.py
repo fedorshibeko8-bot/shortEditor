@@ -220,3 +220,21 @@ async def test_worker_reclaims_expired_claim_after_restart(tmp_path: Path) -> No
     await asyncio.wait_for(task, timeout=1)
 
     assert await repository.get_status("clip-1") == ClipStatus.DOWNLOADING
+
+
+def test_worker_rejects_status_that_cannot_become_failed(tmp_path: Path) -> None:
+    repository = ClipRepository(tmp_path / "shorteditor.db")
+
+    async def process_clip(clip_id: str) -> None:
+        return None
+
+    with pytest.raises(ValueError, match="cannot transition to failed"):
+        Worker(
+            repository,
+            (ClipStatus.NEW,),
+            {ClipStatus.NEW: process_clip},
+            poll_interval_seconds=0.01,
+            claim_ttl_minutes=15,
+            max_attempts=3,
+            notifier=FakeNotifier(),
+        )

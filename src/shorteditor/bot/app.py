@@ -70,7 +70,7 @@ class BotApplication:
                 repository=ClipRepository(self.database_path),
                 statuses=tuple(self.worker_handlers),
                 handlers=self.worker_handlers,
-                poll_interval_seconds=1,
+                poll_interval_seconds=config.queue.poll_interval_seconds,
                 claim_ttl_minutes=config.queue.claim_ttl_minutes,
                 max_attempts=config.queue.max_attempts,
                 notifier=TelegramNotifier(self.bot, settings.telegram_admin_id),
