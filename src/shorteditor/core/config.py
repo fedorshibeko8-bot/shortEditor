@@ -40,6 +40,7 @@ class ParserConfig(BaseModel):
     title_keywords: list[str] = Field(default_factory=list)
     max_candidates_per_poll: int = 20
     candidate_ttl_hours: int = Field(default=24, ge=1, le=168)
+    candidate_ttl_scan_minutes: int = Field(default=10, ge=1)
 
 
 class QueueConfig(BaseModel):

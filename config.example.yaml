@@ -15,6 +15,7 @@ parser:
   title_keywords: []         # опционально; пусто = не фильтровать
   max_candidates_per_poll: 20
   candidate_ttl_hours: 24
+  candidate_ttl_scan_minutes: 10
 
 queue:
   max_pending_candidates: 50

@@ -24,10 +24,21 @@ async def test_idempotent_migration_creates_tables_and_ttl_index(tmp_path: Path)
         clip_columns = {row[1] for row in await columns_cursor.fetchall()}
         indexes_cursor = await db.execute("PRAGMA index_list(clips)")
         indexes = {row[1] for row in await indexes_cursor.fetchall()}
+        migrations_cursor = await db.execute(
+            "SELECT version FROM schema_migrations ORDER BY version"
+        )
+        migrations = [row[0] for row in await migrations_cursor.fetchall()]
 
-    assert {"clips", "renders", "events", "schema_migrations"} <= tables
+    assert {
+        "clips",
+        "renders",
+        "events",
+        "schema_migrations",
+        "background_job_locks",
+    } <= tables
     assert "sent_to_admin_at" in clip_columns
     assert "idx_clips_status_sent_at" in indexes
+    assert migrations == [1, 2]
 
 
 @pytest.mark.asyncio
@@ -37,6 +48,9 @@ async def test_migration_upgrades_existing_clips_table(tmp_path: Path) -> None:
         await db.execute(
             "CREATE TABLE clips (clip_id TEXT PRIMARY KEY, status TEXT NOT NULL)"
         )
+        await db.execute(
+            "INSERT INTO clips(clip_id, status) VALUES ('existing-clip', 'new')"
+        )
         await db.commit()
 
     await initialize_database(db_path)
@@ -44,7 +58,10 @@ async def test_migration_upgrades_existing_clips_table(tmp_path: Path) -> None:
     async with aiosqlite.connect(db_path) as db:
         columns_cursor = await db.execute("PRAGMA table_info(clips)")
         columns = {row[1] for row in await columns_cursor.fetchall()}
+        cursor = await db.execute("SELECT status FROM clips WHERE clip_id = 'existing-clip'")
+        existing_clip = await cursor.fetchone()
     assert "sent_to_admin_at" in columns
+    assert existing_clip == ("new",)
 
 
 @pytest.mark.asyncio

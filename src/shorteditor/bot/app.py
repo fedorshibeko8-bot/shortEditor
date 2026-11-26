@@ -5,8 +5,9 @@ import logging
 import signal
 import sqlite3
 import time
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from aiogram import Bot, Dispatcher
 from aiogram.exceptions import AiogramError, TelegramNetworkError
@@ -18,12 +19,42 @@ from shorteditor.bot.logging import configure_logging
 from shorteditor.bot.middleware import AdminOnlyMiddleware
 from shorteditor.bot.notifications import TelegramNotifier
 from shorteditor.core.config import load_config, load_settings
+from shorteditor.core.scheduler import (
+    DailySchedule,
+    IntervalSchedule,
+    ScheduledJob,
+    Scheduler,
+)
 from shorteditor.core.statuses import ClipStatus
 from shorteditor.core.worker import StepHandler, Worker
 from shorteditor.storage.database import initialize_database
 from shorteditor.storage.repository import ClipRepository
 
 DATABASE_PATH = Path("data/shorteditor.db")
+SchedulerCallback = Callable[[], Awaitable[None]]
+
+
+def _build_scheduler_jobs(
+    callbacks: Mapping[str, SchedulerCallback],
+    *,
+    poll_interval_minutes: int,
+    digest_at: str,
+    candidate_ttl_scan_minutes: int,
+    tz: str,
+) -> tuple[ScheduledJob, ...]:
+    supported_jobs = {
+        "parser_poll": IntervalSchedule(poll_interval_minutes * 60),
+        "daily_digest": DailySchedule.from_string(digest_at, ZoneInfo(tz)),
+        "candidate_ttl_scan": IntervalSchedule(candidate_ttl_scan_minutes * 60),
+        "disk_check": IntervalSchedule(candidate_ttl_scan_minutes * 60),
+    }
+    unknown_jobs = set(callbacks) - supported_jobs.keys()
+    if unknown_jobs:
+        raise ValueError(f"Unknown scheduler jobs: {sorted(unknown_jobs)}")
+    return tuple(
+        ScheduledJob(name=name, schedule=supported_jobs[name], callback=callback)
+        for name, callback in callbacks.items()
+    )
 
 
 class BotApplication:
@@ -31,14 +62,18 @@ class BotApplication:
         self,
         database_path: str | Path = DATABASE_PATH,
         worker_handlers: Mapping[ClipStatus, StepHandler] | None = None,
+        scheduler_jobs: Mapping[str, SchedulerCallback] | None = None,
     ) -> None:
         self.database_path = Path(database_path)
         self.worker_handlers = worker_handlers
+        self.scheduler_jobs = scheduler_jobs or {}
         self.started_at = 0.0
         self.bot: Bot | None = None
         self.dispatcher: Dispatcher | None = None
         self.worker: Worker | None = None
         self.worker_task: asyncio.Task[None] | None = None
+        self.scheduler: Scheduler | None = None
+        self.scheduler_task: asyncio.Task[None] | None = None
         self._stopping = asyncio.Event()
 
     async def start(self) -> None:
@@ -77,6 +112,25 @@ class BotApplication:
             )
             self.worker_task = asyncio.create_task(self.worker.run(), name="clip-worker")
 
+        if self.scheduler_jobs:
+            config = load_config()
+            jobs = _build_scheduler_jobs(
+                self.scheduler_jobs,
+                poll_interval_minutes=config.parser.poll_interval_minutes,
+                digest_at=config.notifications.daily_digest_at,
+                candidate_ttl_scan_minutes=config.parser.candidate_ttl_scan_minutes,
+                tz=settings.tz,
+            )
+            self.scheduler = Scheduler(
+                self.database_path,
+                jobs,
+                notifier=TelegramNotifier(self.bot, settings.telegram_admin_id),
+            )
+            self.scheduler_task = asyncio.create_task(
+                self.scheduler.run(),
+                name="background-scheduler",
+            )
+
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):
             try:
@@ -109,14 +163,21 @@ class BotApplication:
             self.dispatcher.stop_polling()
 
     async def close(self) -> None:
+        if self.scheduler is not None:
+            self.scheduler.stop()
         if self.worker is not None:
             self.worker.stop()
+        scheduler_task = self.scheduler_task
+        self.scheduler_task = None
         task = self.worker_task
         self.worker_task = None
         try:
+            if scheduler_task is not None:
+                await scheduler_task
             if task is not None:
                 await task
         finally:
+            self.scheduler = None
             self.worker = None
             if self.bot is not None:
                 await self.bot.session.close()
