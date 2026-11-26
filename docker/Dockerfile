@@ -28,4 +28,4 @@ RUN chmod 755 /usr/local/bin/shorteditor-entrypoint
 
 USER app
 ENTRYPOINT ["/usr/local/bin/shorteditor-entrypoint"]
-CMD ["sleep", "infinity"]
+CMD ["python", "-m", "shorteditor.bot"]
