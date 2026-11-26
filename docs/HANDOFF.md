@@ -1,8 +1,8 @@
 # HANDOFF — текущее состояние проекта
 
-**Обновлено:** 2026-11-25
-**Обновил:** Copilot App fdb2bb91-6c82-4e74-82a8-1b26d76c9776
-**Ветка:** `gr0knemthiswor1d-lab-shorteditor-project-task` (переименование app-инструментом в `task/S1-03-docker` недоступно: ветка уже переименовывалась в этой сессии)
+**Обновлено:** 2026-11-26
+**Обновил:** agent (merge/verify)
+**Ветка:** `main` (= `origin/main`), вся работа из worktree-ветки смержена
 
 ## 1. Что это за проект
 
@@ -14,42 +14,64 @@ Telegram-бот ищет Twitch-клипы ≤ 60 сек, передаёт их 
 | Задача/компонент | Состояние |
 |---|---|
 | CR-001, S0-04, S1-01, S1-02 | **done** |
-| S1-03 — Docker-образ и compose | **blocked**: Docker Engine не запущен, образ не собран |
-| Пакетирование src-layout | `pip install -e .` и импорты проходят |
-| Compose-файл | `docker compose config --quiet` проходит |
-| Тесты / lint | 28 тестов прошли; Ruff прошёл |
+| S1-03 — Docker-образ и compose | **done**, собрано и проверено на Docker Engine 29.9.3 |
 | S1-04 и далее | не начаты |
+| Тесты / lint | 28 passed; Ruff без замечаний |
 
-## 3. S1-03: реализовано и не проверено
+Сборка образа: `docker build -t shorteditor:dev -f docker/Dockerfile .`, образ `shorteditor:dev` ~872 МБ, `python:3.11-slim-bookworm`.
 
-Добавлены Dockerfile на `python:3.11-slim-bookworm`, entrypoint с LF, compose с единственной службой `app`, `.dockerignore`, пакетирование setuptools, тома `data/`, `logs/`, `models/` и `HF_HOME=/models`.
-Команда по умолчанию — `sleep infinity`, а не фиктивный бот. После реализации точки входа в S1-04 надо заменить `command` сервиса `app` в `docker-compose.yml` на реальную команду запуска бота.
+Проверено внутри образа:
+- `ffmpeg version 5.1.9-0+deb12u1`, фильтр `ass` (libass) присутствует.
+- `fc-list` видит Montserrat (style ExtraBold) и Inter (style Black).
+- `python -c "import shorteditor, aiosqlite, yaml, pydantic"` — ок.
+- процесс под пользователем `app` (uid 1000), `/models` доступен на запись.
+- `docker compose config --quiet` — ок.
 
-В `docker/fonts/` находятся статические экземпляры Montserrat ExtraBold (вес 800) и Inter Black (вес 900), созданные из официальных variable TTF Google Fonts; рядом сохранены соответствующие OFL-тексты лицензий. Dockerfile устанавливает их, затем запускает `fc-cache -f`.
+**Исправленный при проверке баг:** `fc-match "Montserrat ExtraBold"` возвращал `DejaVuSans.ttf`, то есть libass молча подменял бы шрифт. Добавлен `docker/fonts/fonts.conf` с fontconfig-алиасами; после пересборки `fc-match` возвращает `Montserrat-ExtraBold.ttf` и `Inter-Black.ttf`. Решение записано в D-018.
 
-Проверки на этой машине:
-- Python 3.15.2: `pip install -e .` успешно; `import shorteditor, aiosqlite, yaml` печатает `ok`.
-- `docker compose config --quiet`: успешно; Docker Compose CLI v5.7.0.
-- `pytest -q`: 28 passed.
-- Ruff: All checks passed.
-- Docker CLI 29.9.3 установлен, но Docker Engine недоступен: отсутствует pipe `//./pipe/dockerDesktopLinuxEngine`.
-- `docker build`, запуск контейнера, ffmpeg/libass, `fc-list`, размер образа и длительность сборки **не проверены**. Версия ffmpeg внутри образа неизвестна.
+## 3. Что НЕ проверено
 
-После запуска Docker Engine выполнить:
-`docker build -t shorteditor:dev . -f docker/Dockerfile`;
-`docker compose config`;
-`docker compose up -d --build`;
-проверить `ffmpeg -version`, наличие фильтра `ass`, `fc-list` для Montserrat/Inter и импорт `shorteditor`, `aiosqlite`, `yaml`.
-Для проверки сохранения моделей создать файл-маркер в `./models`, выполнить `docker compose up -d --force-recreate app` и убедиться, что маркер доступен внутри `/models`; `HF_HOME` должен быть `/models`.
+- Реальное кеширование модели Whisper: volume `/models` и `HF_HOME=/models` настроены, но модель ещё не скачивалась (появится в S3-03).
+- Рендер `.ass` через `ass=` — до S3-06 нечего проверять.
+- Запуск под пользователем `app` на Linux-сервере с bind-mount: на Docker Desktop Windows права маскируются, на Ubuntu возможны проблемы с владельцем `./data`. Проверить при первом деплое на сервер.
+- Docker Compose CLI на этой машине сообщает версию v5.7.0; синтаксис `env_file: path/required` требует Compose ≥ 2.24 — на Ubuntu 22.04 проверить перед деплоем.
 
 ## 4. Следующий шаг
 
-Сначала разблокировать и завершить проверку S1-03 на работающем Docker Engine; только затем переходить к **S1-04 · Скелет бота**.
-Открывать первым: `docker/Dockerfile`, `docker-compose.yml`, `docs/TASKS.md`.
-
-Порядок этапа 1:
-S1-01 → S1-02 → S1-03 → S1-04 → S1-05 → S1-08 → S1-06 → S1-07.
+**S1-04 · Скелет бота (aiogram 3)** (`docs/TASKS.md`).
+Открывать первым: `src/shorteditor/bot/`, `src/shorteditor/core/config.py`, `docker-compose.yml`.
+Обязательно: в `docker-compose.yml` заменить `command: sleep infinity` на реальную команду запуска приложения, сохранив `exec` в entrypoint (SIGTERM должен доходить до процесса).
+Порядок этапа 1: S1-01 → S1-02 → S1-03 → S1-04 → S1-05 → S1-08 → S1-06 → S1-07.
 
 ## 5. Публикация
 
-Ранее push в `fedorshibeko8-bot/shortEditor` блокировался 403: credential авторизовался как `gr0knemthiswor1d-lab` с недостаточными правами. Публикацию изменений S1-03 нужно повторить после устранения прав доступа.
+`main` запушен под аккаунтом `fedorshibeko8-bot`. Агент в worktree не может пушить: его credential — `gr0knemthiswor1d-lab`, ответ 403. Схема работы: реализация в worktree → мерж, проверка и push из `C:\Users\Lenovo\Desktop\shortEditor`.
+
+## 6. Окружение
+
+- Windows, основной каталог `C:\Users\Lenovo\Desktop\shortEditor`.
+- Worktree Copilot: `C:\Users\Lenovo\.copilot\repos\copilot-worktrees\shortEditor\gr0knemthiswor1d-lab-super-train` (ветка `gr0knemthiswor1d-lab-shorteditor-project-task`).
+- Python 3.15.2 (пакет требует ≥ 3.11; образ на 3.11 — расхождение версий учитывать в тестах).
+- Docker Desktop + Engine 29.9.3, Compose CLI v5.7.0.
+- pytest 9.2.0, 28 тестов.
+
+## 7. Как проверить, что проект «жив»
+
+```bash
+python -m pytest -q
+docker compose config --quiet
+docker build -t shorteditor:dev -f docker/Dockerfile .
+docker run --rm shorteditor:dev sh -c "ffmpeg -version | head -1; fc-match 'Montserrat ExtraBold'"
+```
+
+Ожидаемо: 28 passed, конфиг валиден, ffmpeg 5.1.x, `Montserrat-ExtraBold.ttf`.
+
+---
+
+_Шаблон для следующего обновления (не удалять):_
+```
+Обновлено: <дата> · <агент> · ветка <branch>
+Сделано: <ID> — <кратко>
+Осталось: <ID> — <с чего продолжить, какой файл открыть первым>
+Блокеры: <...>
+```

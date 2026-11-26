@@ -11,6 +11,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY docker/fonts/Montserrat-ExtraBold.ttf docker/fonts/Inter-Black.ttf /usr/share/fonts/truetype/shorteditor/
+COPY docker/fonts/fonts.conf /etc/fonts/conf.d/99-shorteditor-aliases.conf
 RUN fc-cache -f
 
 COPY pyproject.toml ./

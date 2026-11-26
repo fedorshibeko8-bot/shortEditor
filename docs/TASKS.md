@@ -4,7 +4,7 @@
 Правила ведения — в `AGENTS.md` §3–§5. Здесь только статусы и факты; обсуждения — в `docs/DECISIONS.md`.
 
 **Легенда статусов:** `todo` · `in_progress` · `blocked` · `review` · `done`
-**Последнее обновление:** 2026-11-25 · CR-001, S0-04, S1-01 и S1-02 завершены; S1-03 заблокирована проверкой Docker Engine.
+**Последнее обновление:** 2026-11-26 · S1-03 собрана и проверена на Docker Engine 29.9.3; этап 1 ведётся с `main`.
 
 ---
 
@@ -13,12 +13,12 @@
 | Этап | Задач | done | in_progress | blocked | todo |
 |---|---:|---:|---:|---:|---:|
 | 0. Каркас репозитория | 4 | 4 | 0 | 0 | 0 |
-| 1. Каркас приложения | 8 | 2 | 0 | 1 | 5 |
+| 1. Каркас приложения | 8 | 3 | 0 | 0 | 5 |
 | 2. Парсер | 5 | 0 | 0 | 0 | 5 |
 | 3. Конвейер | 10 | 0 | 0 | 0 | 10 |
 | 4. Публикация | 4 | 0 | 0 | 0 | 4 |
 | 5. Доработки | 4 | 0 | 0 | 0 | 4 |
-| **Итого** | **35** | **6** | **0** | **1** | **28** |
+| **Итого** | **35** | **7** | **0** | **0** | **28** |
 
 ---
 
@@ -92,18 +92,19 @@
   - [x] поле `clips.sent_to_admin_at` и индекс по `(status, sent_to_admin_at)` для скана TTL
 
 ### S1-03 · Docker-образ и compose
-- status: blocked
-- owner: Copilot App fdb2bb91-6c82-4e74-82a8-1b26d76c9776, 2026-11-25
+- status: done
+- owner: Copilot App fdb2bb91…, 2026-11-25; проверено agent(merge/verify), 2026-11-26
 - depends on: S1-01
 - area: `docker/`, `docker-compose.yml`, `pyproject.toml`
 - acceptance:
   - [x] Dockerfile на python:3.11-slim-bookworm, устанавливает ffmpeg/fontconfig/ca-certificates, пакет и шрифты OFL Montserrat ExtraBold/Inter Black; создаёт app uid 1000
-  - [ ] образ собран; внутри `ffmpeg -version`, фильтр `ass` присутствует, `fc-list` видит оба семейства
+  - [x] образ собран; внутри `ffmpeg -version` = 5.1.9-0+deb12u1, фильтр `ass` (libass) присутствует, `fc-list` видит оба семейства
   - [x] compose описывает data/logs/models volume, optional `.env`, TZ и одну службу `app`
   - [x] `docker compose config` проходит; команда по умолчанию — `sleep infinity`, а не фиктивный бот
   - [x] кеш моделей постоянный (`./models:/models`, `HF_HOME=/models`); нет загрузки моделей на этапе сборки
   - [x] `pip install -e .` и импорты `shorteditor`, `aiosqlite`, `yaml` проходят
-  - [ ] запуск и пересоздание контейнера проверены на работающем Docker Engine
+  - [x] запуск контейнера проверен: пользователь `app`, `/models` доступен на запись, образ ~872 МБ
+  - [x] исправлено при проверке: `fc-match "Montserrat ExtraBold"` уходил в DejaVu Sans; добавлен `docker/fonts/fonts.conf` с fontconfig-алиасами, после пересборки имена резолвятся в свои файлы
 
 ### S1-04 · Скелет бота (aiogram 3)
 - status: todo
@@ -431,4 +432,6 @@
 2026-11-25 · S1-02 · Copilot App fdb2bb91-6c82-4e74-82a8-1b26d76c9776 · добавлены aiosqlite-схема clips/renders/events, идемпотентные миграции, поле sent_to_admin_at и индекс TTL, машина статусов и атомарный захват/освобождение задачи; unit-тесты матрицы статусов, миграции и claim выполнены · нет блокеров · следующий шаг: S1-03 (Docker-образ и compose)
 2026-11-25 · S1-03 · Copilot App fdb2bb91-6c82-4e74-82a8-1b26d76c9776 · добавлены пакетирование src-layout, Dockerfile, Compose, entrypoint, .dockerignore, официальные шрифты Google Fonts и D-017; pip install -e ., compose config, 28 тестов и Ruff прошли · сборка/проверки контейнера заблокированы: Docker CLI 29.9.3 есть, но Linux Engine недоступен на named pipe `//./pipe/dockerDesktopLinuxEngine`; точные ffmpeg в образе, размер и время сборки неизвестны; локальное имя ветки осталось прежним, app-инструмент отказался повторно переименовывать ветку · следующий шаг: запустить Docker Engine, закончить проверки S1-03, затем S1-04
 2026-11-25 · CR-001 · Copilot App fdb2bb91-6c82-4e74-82a8-1b26d76c9776 · применены правки SPEC v1.2, новые задачи S0-04/S1-08/S2-05/S3-09/S3-10, правки существующих задач, ADR D-012…D-016, структура ARCHITECTURE и служебные файлы LICENSE/.editorconfig/PR-template · нужно выполнить финальный чеклист и закоммитить handoff · следующий шаг: проверка секретов и diff перед двумя docs-коммитами
+2026-11-25 · merge/CR-001 и merge/S1-02 · agent(merge/publish) · ветка worktree смержена в `main` (`4fe2611`, затем `86ae333`) и запушена; pytest 28 passed; в S1-05 добавлены критерии снятия протухших `worker_claim` и инкремента `attempt_count` · записи истории, добавленные при этих merge, были перезаписаны при разрешении конфликта следующего merge и восстановлены здесь · следующий шаг: S1-03
+2026-11-26 · merge/S1-03 + проверка · agent(merge/verify) · ветка worktree смержена в `main` (`143f6b7`); Docker Engine 29.9.3 поднят, образ собран: ffmpeg 5.1.9-0+deb12u1, фильтр `ass` (libass) есть, `fc-list` видит Montserrat ExtraBold и Inter Black, импорты ок, пользователь `app`, `/models` на запись, `docker compose config` проходит, образ ~872 МБ · найден и исправлен баг: `fc-match "Montserrat ExtraBold"` уходил в DejaVu Sans, добавлен `docker/fonts/fonts.conf` с алиасами, после пересборки имена резолвятся в свои файлы · не проверено: реальное кеширование модели Whisper и рендер `.ass` (появятся в S3-03/S3-06) · следующий шаг: S1-04 (скелет бота)
 ```
