@@ -4,7 +4,7 @@ from pathlib import Path
 
 import aiosqlite
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 async def initialize_database(database_path: str | Path) -> None:
@@ -107,6 +107,22 @@ async def initialize_database(database_path: str | Path) -> None:
 
         await db.execute(
             "INSERT OR IGNORE INTO schema_migrations(version) VALUES (?)",
-            (SCHEMA_VERSION,),
+            (1,),
         )
+        migrations = await db.execute("SELECT MAX(version) FROM schema_migrations")
+        current_version = (await migrations.fetchone())[0] or 0
+        if current_version < SCHEMA_VERSION:
+            await db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS background_job_locks (
+                    job_name TEXT PRIMARY KEY,
+                    owner TEXT NOT NULL,
+                    expires_at TEXT NOT NULL
+                )
+                """
+            )
+            await db.execute(
+                "INSERT OR IGNORE INTO schema_migrations(version) VALUES (?)",
+                (SCHEMA_VERSION,),
+            )
         await db.commit()

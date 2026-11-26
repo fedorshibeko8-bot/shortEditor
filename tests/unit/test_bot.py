@@ -5,9 +5,27 @@ from types import SimpleNamespace
 import aiosqlite
 import pytest
 
+from shorteditor.bot.app import _build_scheduler_jobs
 from shorteditor.bot.handlers import count_statuses
 from shorteditor.bot.middleware import AdminOnlyMiddleware
 from shorteditor.storage.database import initialize_database
+
+
+def test_scheduler_registers_only_supplied_callbacks_with_configured_schedules() -> None:
+    async def callback() -> None:
+        pass
+
+    jobs = _build_scheduler_jobs(
+        {"parser_poll": callback, "daily_digest": callback},
+        poll_interval_minutes=15,
+        digest_at="21:00",
+        candidate_ttl_scan_minutes=10,
+        disk_check_minutes=5,
+        tz="Europe/Moscow",
+    )
+
+    assert [job.name for job in jobs] == ["parser_poll", "daily_digest"]
+    assert jobs[0].schedule.interval_seconds == 900
 
 
 @pytest.mark.asyncio
