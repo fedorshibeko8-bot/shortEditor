@@ -150,6 +150,7 @@ class NotificationsConfig(BaseModel):
 
     daily_digest_at: str = "21:00"
     disk_free_alert_percent: int = 10
+    disk_check_minutes: int = Field(default=10, ge=1)
 
 
 class LoggingConfig(BaseModel):

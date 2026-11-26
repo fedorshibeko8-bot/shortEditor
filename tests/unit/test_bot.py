@@ -20,6 +20,7 @@ def test_scheduler_registers_only_supplied_callbacks_with_configured_schedules()
         poll_interval_minutes=15,
         digest_at="21:00",
         candidate_ttl_scan_minutes=10,
+        disk_check_minutes=5,
         tz="Europe/Moscow",
     )
 

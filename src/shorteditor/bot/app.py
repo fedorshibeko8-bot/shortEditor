@@ -40,13 +40,14 @@ def _build_scheduler_jobs(
     poll_interval_minutes: int,
     digest_at: str,
     candidate_ttl_scan_minutes: int,
+    disk_check_minutes: int,
     tz: str,
 ) -> tuple[ScheduledJob, ...]:
     supported_jobs = {
         "parser_poll": IntervalSchedule(poll_interval_minutes * 60),
         "daily_digest": DailySchedule.from_string(digest_at, ZoneInfo(tz)),
         "candidate_ttl_scan": IntervalSchedule(candidate_ttl_scan_minutes * 60),
-        "disk_check": IntervalSchedule(candidate_ttl_scan_minutes * 60),
+        "disk_check": IntervalSchedule(disk_check_minutes * 60),
     }
     unknown_jobs = set(callbacks) - supported_jobs.keys()
     if unknown_jobs:
@@ -119,6 +120,7 @@ class BotApplication:
                 poll_interval_minutes=config.parser.poll_interval_minutes,
                 digest_at=config.notifications.daily_digest_at,
                 candidate_ttl_scan_minutes=config.parser.candidate_ttl_scan_minutes,
+                disk_check_minutes=config.notifications.disk_check_minutes,
                 tz=settings.tz,
             )
             self.scheduler = Scheduler(
