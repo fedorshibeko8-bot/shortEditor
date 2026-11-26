@@ -107,8 +107,8 @@
   - [x] исправлено при проверке: `fc-match "Montserrat ExtraBold"` уходил в DejaVu Sans; добавлен `docker/fonts/fonts.conf` с fontconfig-алиасами, после пересборки имена резолвятся в свои файлы
 
 ### S1-04 · Скелет бота (aiogram 3)
-- status: todo
-- owner: —
+- status: in_progress
+- owner: Copilot CLI 8d1e9d5c-…, 2026-11-26
 - depends on: S1-01, S1-03
 - area: `src/shorteditor/bot/`
 - acceptance:
