@@ -1,8 +1,8 @@
 # HANDOFF — текущее состояние проекта
 
 **Обновлено:** 2026-11-26
-**Обновил:** agent (merge/verify)
-**Ветка:** `main` (= `origin/main`); ветка `task/S1-04-bot-skeleton` смержена
+**Обновил:** Copilot CLI
+**Ветка:** `task/S1-05-worker-loop` (на базе чистой `main`; не опубликована)
 
 ## 1. Что это за проект
 
@@ -16,8 +16,13 @@ Telegram-бот ищет Twitch-клипы ≤ 60 сек, передаёт их 
 | CR-001, S0-04, S1-01, S1-02 | **done** |
 | S1-03 — Docker-образ и compose | **done**, собрано и проверено |
 | S1-04 — Скелет бота | **done**, проверено локально и в контейнере |
-| S1-05 и далее | не начаты |
-| Тесты / lint | 31 passed; Ruff без замечаний |
+| S1-05 — Worker-loop и очередь из БД | **done**, тесты/линтер пройдены |
+| S1-06, S1-07, S1-08 и далее | не начаты |
+| Тесты / lint | 39 passed; Ruff без замечаний |
+
+Worker забирает только переданные ему статусы и обработчики; до появления реальных шагов конвейера он не запускается в приложении. Захват и увеличение `attempt_count` атомарны в `BEGIN IMMEDIATE`; TTL 15 минут очищается при старте и опросе очереди. Ошибки повторяются до `queue.max_attempts`, затем фиксируются как `failed` вместе с событием и одним уведомлением через интерфейс notifier. Успешный шаг освобождает claim и обнуляет счётчик. Остановка ждёт текущий шаг и не начинает следующий.
+
+Проверки S1-05: `python -m pytest -q` — 39 passed; `python -m ruff check .` — без замечаний; `python -c "import shorteditor.bot"` — успешно.
 
 Сборка образа: `docker build -t shorteditor:dev -f docker/Dockerfile .`, образ `shorteditor:dev` ~872 МБ, `python:3.11-slim-bookworm`.
 
@@ -38,16 +43,16 @@ Telegram-бот ищет Twitch-клипы ≤ 60 сек, передаёт их 
 ## 3. Что НЕ проверено
 
 - Реальное Telegram polling с действительным токеном и Telegram API не проверено.
-- Graceful shutdown по SIGINT/SIGTERM проверен только чтением кода: без живого polling не на чем проверить. Проверить при первом запуске с реальным токеном (в логах `bot_shutdown_requested` → `bot_shutdown_complete`).
+- Уведомление проверено только на fake notifier; доставка в Telegram и graceful shutdown с живым polling/токеном не проверены.
+- Поведение после `kill -9` проверено имитацией старого `claimed_at` и перезапуском worker, но не реальным убийством процесса.
 - Реальное кеширование модели Whisper: volume `/models` и `HF_HOME=/models` настроены, но модель ещё не скачивалась (появится в S3-03).
 - Рендер `.ass` через `ass=` — до S3-06 нечего проверять.
 - Запуск под пользователем `app` на Linux-сервере с bind-mount: на Docker Desktop Windows права маскируются, на Ubuntu возможны проблемы с владельцем `./data`. Проверить при первом деплое на сервер.
 
 ## 4. Следующий шаг
 
-**S1-05 · Worker-loop и очередь из БД** (`docs/TASKS.md`).
-Открывать первым: `src/shorteditor/core/worker.py`, `src/shorteditor/pipeline/`, `src/shorteditor/storage/repository.py`.
-Скелет бота завершён: точка входа `python -m shorteditor.bot`, middleware и `/start`/`/status` готовы.
+**S1-08 · Планировщик фоновых задач** (`docs/TASKS.md`).
+Открывать первым: `src/shorteditor/core/scheduler.py`, затем worker lifecycle в `src/shorteditor/bot/app.py`.
 Порядок этапа 1 сохраняется: S1-01 → S1-02 → S1-03 → S1-04 → S1-05 → S1-08 → S1-06 → S1-07.
 
 ## 5. Публикация
@@ -60,7 +65,7 @@ Telegram-бот ищет Twitch-клипы ≤ 60 сек, передаёт их 
 - Worktree Copilot: `C:\Users\Lenovo\.copilot\repos\copilot-worktrees\shortEditor\gr0knemthiswor1d-lab-super-train` (ветка `gr0knemthiswor1d-lab-shorteditor-project-task`).
 - Python 3.15.2 (пакет требует ≥ 3.11; образ на 3.11 — расхождение версий учитывать в тестах).
 - Docker Desktop + Engine 29.9.3, Compose CLI v5.7.0.
-- pytest 9.2.0, 31 тест.
+- pytest 9.2.0, 39 тестов.
 
 ## 7. Как проверить, что проект «жив»
 
@@ -72,14 +77,14 @@ docker run --rm shorteditor:dev sh -c "ffmpeg -version | head -1; fc-match 'Mont
 docker run --rm shorteditor:dev; echo "exit=$?"
 ```
 
-Ожидаемо: 31 passed, конфиг валиден, ffmpeg 5.1.x, `Montserrat-ExtraBold.ttf`, последняя команда — `Startup error: required environment variables ...` и `exit=1`.
+Ожидаемо: 39 passed, конфиг валиден, ffmpeg 5.1.x, `Montserrat-ExtraBold.ttf`, последняя команда — `Startup error: required environment variables ...` и `exit=1`.
 
 ---
 
 _Шаблон для следующего обновления (не удалять):_
 ```
-Обновлено: <дата> · <агент> · ветка <branch>
-Сделано: <ID> — <кратко>
-Осталось: <ID> — <с чего продолжить, какой файл открыть первым>
-Блокеры: <...>
+Обновлено: 2026-11-26 · Copilot CLI · ветка task/S1-05-worker-loop
+Сделано: S1-05 — worker-loop, claim TTL, retries, notifier
+Осталось: S1-08 — начать с core/scheduler.py
+Блокеры: нет
 ```

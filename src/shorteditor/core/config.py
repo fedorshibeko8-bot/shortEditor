@@ -48,6 +48,8 @@ class QueueConfig(BaseModel):
     max_pending_candidates: int = 50
     max_concurrent_renders: int = 1
     max_attempts: int = 3
+    claim_ttl_minutes: int = Field(default=15, ge=1)
+    poll_interval_seconds: int = Field(default=5, ge=1)
 
 
 class LlmNormalizeConfig(BaseModel):

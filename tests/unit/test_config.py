@@ -53,6 +53,8 @@ def test_config_defaults_match_example_values() -> None:
     assert config.parser.max_duration_seconds == 60
     assert config.parser.candidate_ttl_hours == 24
     assert config.queue.max_concurrent_renders == 1
+    assert config.queue.claim_ttl_minutes == 15
+    assert config.queue.poll_interval_seconds == 5
     assert config.transcribe.model == "medium"
     assert config.transcribe.llm_normalize.enabled is False
     assert config.subtitles.font_size == 68
@@ -104,6 +106,16 @@ def test_render_fps_rejects_120() -> None:
 def test_candidate_ttl_rejects_out_of_range(ttl: int) -> None:
     with pytest.raises(ValidationError):
         AppConfig.model_validate({"parser": {"candidate_ttl_hours": ttl}})
+
+
+def test_queue_claim_ttl_rejects_values_below_one() -> None:
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate({"queue": {"claim_ttl_minutes": 0}})
+
+
+def test_queue_poll_interval_rejects_values_below_one() -> None:
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate({"queue": {"poll_interval_seconds": 0}})
 
 
 def test_llm_normalize_defaults_to_disabled() -> None:
