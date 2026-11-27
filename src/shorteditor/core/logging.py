@@ -9,24 +9,42 @@ from typing import Any
 
 LOG_FILE_NAME = "shorteditor.log"
 STRUCTURED_FIELDS = ("clip_id", "stage", "duration_ms", "error")
+_STANDARD_RECORD_FIELDS = frozenset(logging.makeLogRecord({}).__dict__) | {
+    "asctime",
+    "event",
+    "level",
+    "message",
+    "timestamp",
+}
+
+
+def _json_safe(value: Any) -> Any:
+    """Приводит значение к JSON-совместимому виду, не роняя процесс логирования."""
+
+    try:
+        return json.loads(json.dumps(value, ensure_ascii=False, default=str, allow_nan=False))
+    except (OverflowError, TypeError, ValueError):
+        try:
+            return str(value)
+        except Exception:  # noqa: BLE001 - сломанное extra не должно ломать лог
+            return None
 
 
 class JsonFormatter(logging.Formatter):
-    """Одна строка — один JSON-объект с обязательными структурными полями."""
+    """Одна строка — один JSON-объект: стандартные поля плюс любые extra."""
 
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, Any] = {
-            "event": getattr(record, "event", record.getMessage()),
-            "timestamp": datetime.now(UTC).isoformat(),
+            "event": _json_safe(getattr(record, "event", record.getMessage())),
+            "timestamp": datetime.fromtimestamp(record.created, UTC).isoformat(),
             "level": record.levelname,
         }
-        for field in STRUCTURED_FIELDS:
-            value = getattr(record, field, None)
-            if value is not None:
-                payload[field] = value
+        for field, value in record.__dict__.items():
+            if field not in _STANDARD_RECORD_FIELDS:
+                payload[field] = _json_safe(value)
         if record.exc_info:
             payload["error"] = self.formatException(record.exc_info)
-        return json.dumps(payload, ensure_ascii=False)
+        return json.dumps(payload, ensure_ascii=False, allow_nan=False)
 
 
 def configure_logging(

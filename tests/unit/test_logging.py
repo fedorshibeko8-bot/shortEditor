@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -32,6 +33,29 @@ def test_json_formatter_keeps_structured_fields() -> None:
     assert payload["duration_ms"] == 1234
     assert payload["error"] == "boom"
     assert "timestamp" in payload
+
+
+def test_json_formatter_keeps_arbitrary_extra_fields_and_survives_unsafe_values() -> None:
+    payload = json.loads(
+        JsonFormatter().format(
+            _record(job="disk_check", reason="lock_held", free_percent=4.5, unsafe=object())
+        )
+    )
+
+    assert payload["job"] == "disk_check"
+    assert payload["reason"] == "lock_held"
+    assert payload["free_percent"] == 4.5
+    assert isinstance(payload["unsafe"], str)
+
+
+def test_json_formatter_uses_record_creation_time() -> None:
+    record = _record()
+
+    payload = json.loads(JsonFormatter().format(record))
+
+    assert datetime.fromisoformat(payload["timestamp"]).timestamp() == pytest.approx(
+        record.created, abs=0.001
+    )
 
 
 def test_json_formatter_omits_absent_optional_fields() -> None:
