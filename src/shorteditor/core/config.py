@@ -21,7 +21,7 @@ class AppSettings(BaseSettings):
     r2_secret_access_key: str = Field(min_length=1)
     r2_bucket: str = Field(min_length=1)
     r2_public_base_url: str | None = None
-    log_level: str = "INFO"
+    log_level: str | None = None
     tz: str = "Europe/Moscow"
 
 
@@ -149,8 +149,9 @@ class NotificationsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     daily_digest_at: str = "21:00"
-    disk_free_alert_percent: int = 10
+    disk_free_alert_percent: int = Field(default=10, ge=1, le=100)
     disk_check_minutes: int = Field(default=10, ge=1)
+    disk_alert_repeat_hours: int = Field(default=6, ge=1)
 
 
 class LoggingConfig(BaseModel):

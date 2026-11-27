@@ -6,6 +6,7 @@ import signal
 import sqlite3
 import time
 from collections.abc import Awaitable, Callable, Mapping
+from datetime import timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -15,10 +16,11 @@ from aiogram.types import BotCommand
 from pydantic import ValidationError
 
 from shorteditor.bot.handlers import create_handlers
-from shorteditor.bot.logging import configure_logging
 from shorteditor.bot.middleware import AdminOnlyMiddleware
 from shorteditor.bot.notifications import TelegramNotifier
-from shorteditor.core.config import load_config, load_settings
+from shorteditor.core.config import AppConfig, load_config, load_settings
+from shorteditor.core.disk import DiskGuard
+from shorteditor.core.logging import configure_logging
 from shorteditor.core.scheduler import (
     DailySchedule,
     IntervalSchedule,
@@ -68,6 +70,7 @@ class BotApplication:
         self.database_path = Path(database_path)
         self.worker_handlers = worker_handlers
         self.scheduler_jobs = scheduler_jobs or {}
+        self.config: AppConfig | None = None
         self.started_at = 0.0
         self.bot: Bot | None = None
         self.dispatcher: Dispatcher | None = None
@@ -77,10 +80,26 @@ class BotApplication:
         self.scheduler_task: asyncio.Task[None] | None = None
         self._stopping = asyncio.Event()
 
+    @staticmethod
+    def _load_config() -> AppConfig:
+        """config.yaml может отсутствовать (например, в контейнере) — тогда действуют дефолты."""
+
+        try:
+            return load_config()
+        except FileNotFoundError:
+            return AppConfig()
+
     async def start(self) -> None:
         self.started_at = time.monotonic()
         settings = load_settings()
-        configure_logging(settings.log_level)
+        config = self._load_config()
+        self.config = config
+        configure_logging(
+            settings.log_level or config.logging.level,
+            log_dir=config.logging.dir,
+            rotation_mb=config.logging.rotation_mb,
+            backups=config.logging.backups,
+        )
         await initialize_database(self.database_path)
 
         self.bot = Bot(settings.telegram_bot_token)
@@ -100,8 +119,9 @@ class BotApplication:
             extra={"event": "bot_started", "stage": "startup"},
         )
 
+        notifier = TelegramNotifier(self.bot, settings.telegram_admin_id)
+
         if self.worker_handlers:
-            config = load_config()
             self.worker = Worker(
                 repository=ClipRepository(self.database_path),
                 statuses=tuple(self.worker_handlers),
@@ -109,29 +129,37 @@ class BotApplication:
                 poll_interval_seconds=config.queue.poll_interval_seconds,
                 claim_ttl_minutes=config.queue.claim_ttl_minutes,
                 max_attempts=config.queue.max_attempts,
-                notifier=TelegramNotifier(self.bot, settings.telegram_admin_id),
+                notifier=notifier,
             )
             self.worker_task = asyncio.create_task(self.worker.run(), name="clip-worker")
 
-        if self.scheduler_jobs:
-            config = load_config()
-            jobs = _build_scheduler_jobs(
-                self.scheduler_jobs,
-                poll_interval_minutes=config.parser.poll_interval_minutes,
-                digest_at=config.notifications.daily_digest_at,
-                candidate_ttl_scan_minutes=config.parser.candidate_ttl_scan_minutes,
-                disk_check_minutes=config.notifications.disk_check_minutes,
-                tz=settings.tz,
+        jobs = dict(self.scheduler_jobs)
+        if "disk_check" not in jobs:
+            disk_guard = DiskGuard(
+                self.database_path.parent,
+                threshold_percent=config.notifications.disk_free_alert_percent,
+                alert_interval=timedelta(hours=config.notifications.disk_alert_repeat_hours),
+                notifier=notifier,
             )
-            self.scheduler = Scheduler(
-                self.database_path,
-                jobs,
-                notifier=TelegramNotifier(self.bot, settings.telegram_admin_id),
-            )
-            self.scheduler_task = asyncio.create_task(
-                self.scheduler.run(),
-                name="background-scheduler",
-            )
+            jobs["disk_check"] = disk_guard.check
+
+        scheduled_jobs = _build_scheduler_jobs(
+            jobs,
+            poll_interval_minutes=config.parser.poll_interval_minutes,
+            digest_at=config.notifications.daily_digest_at,
+            candidate_ttl_scan_minutes=config.parser.candidate_ttl_scan_minutes,
+            disk_check_minutes=config.notifications.disk_check_minutes,
+            tz=settings.tz,
+        )
+        self.scheduler = Scheduler(
+            self.database_path,
+            scheduled_jobs,
+            notifier=notifier,
+        )
+        self.scheduler_task = asyncio.create_task(
+            self.scheduler.run(),
+            name="background-scheduler",
+        )
 
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):
