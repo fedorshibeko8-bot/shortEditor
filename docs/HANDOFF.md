@@ -1,8 +1,8 @@
 # HANDOFF — текущее состояние проекта
 
-**Обновлено:** 2026-11-26
-**Обновил:** agent (merge/verify)
-**Ветка:** `main` (= `origin/main`); ветка `task/S1-08-scheduler` смержена
+**Обновлено:** 2026-11-27
+**Обновил:** agent (OpenCode)
+**Ветка:** `main` (= `origin/main`); ветка `task/S1-06-logging-disk-guard` смержена
 
 ## 1. Что это за проект
 
@@ -18,76 +18,69 @@ Telegram-бот ищет Twitch-клипы ≤ 60 сек, передаёт их 
 | S1-04 — Скелет бота | **done**, проверено локально и в контейнере |
 | S1-05 — Worker-loop и очередь из БД | **done**, смержено и проверено |
 | S1-08 — Планировщик фоновых задач | **done**, смержено и проверено |
-| S1-06, S1-07 и далее | не начаты |
-| Тесты / lint | 52 passed; Ruff без замечаний |
+| S1-06 — Логирование и диск-гард | **done**, смержено и проверено |
+| S1-07 и далее | не начаты |
+| Тесты / lint | 75 passed; Ruff без замечаний |
 
-Worker забирает только переданные ему статусы и обработчики; до появления реальных шагов конвейера он не запускается в приложении. Захват и увеличение `attempt_count` атомарны в `BEGIN IMMEDIATE`; TTL 15 минут очищается при старте и опросе очереди. Ошибки повторяются до `queue.max_attempts`, затем фиксируются как `failed` вместе с событием и одним уведомлением через интерфейс notifier. Успешный шаг освобождает claim и обнуляет счётчик. Остановка ждёт текущий шаг и не начинает следующий. Интервал опроса вынесен в `queue.poll_interval_seconds` (по умолчанию 5), в конструкторе worker проверяется, что каждый обрабатываемый статус допускает переход в `failed`, а сбой итерации (например, ошибка SQLite) логируется и не убивает цикл.
+Worker забирает только переданные ему статусы и обработчики; до появления реальных шагов конвейера он не запускается в приложении. Захват и увеличение `attempt_count` атомарны в `BEGIN IMMEDIATE`; TTL 15 минут очищается при старте и опросе очереди. Ошибки повторяются до `queue.max_attempts`, затем фиксируются как `failed` вместе с событием и одним уведомлением через интерфейс notifier.
 
-Проверки S1-05: `python -m pytest -q` — 41 passed; `python -m ruff check .` — без замечаний; `python -c "import shorteditor.bot"` — успешно.
+S1-08 добавляет `core/scheduler.py`: asyncio-задачи с интервалом или ежедневным временем в `settings.tz`, SQLite lease-lock с expiry и heartbeat, структурные логи и одно уведомление при ошибке job.
 
-S1-08 добавляет `core/scheduler.py`: asyncio-задачи с интервалом или ежедневным временем в `settings.tz`, без немедленного первого запуска по умолчанию. Интервальные запуски сохраняют исходную сетку времени и пропускают пропущенные тики; длительность callback не накапливает дрейф. Jobs передаются приложению необязательной мапой: `parser_poll`, `daily_digest`, `candidate_ttl_scan`, `disk_check`; незаданные jobs не регистрируются. Проверка диска использует собственный ключ `notifications.disk_check_minutes` (10 минут), порог остаётся в `notifications.disk_free_alert_percent`. Для `ZoneInfo` добавлена зависимость `tzdata` — без неё на Windows без системной базы часовых поясов `settings.tz` падал бы при старте.
+S1-06 добавляет два модуля ядра:
 
-Для межпроцессной защиты добавлена схема v2 с `background_job_locks`: атомарное получение через `BEGIN IMMEDIATE`, срок lease 60 секунд, продление во время работы и снятие по завершении; протухшие строки чистятся при следующем захвате. При занятом lock job пропускается со структурным логом. Ошибка callback логируется с `event`, `stage`, `duration_ms`, `error`, отправляет одно уведомление и не завершает scheduler. Shutdown ждёт завершения текущего callback.
+- `core/logging.py` — `JsonFormatter` (поля `event`, `timestamp`, `level` + `clip_id`, `stage`, `duration_ms`, `error`; трейсбек уходит в `error`) и `configure_logging(level, log_dir, rotation_mb, backups)`: stdout всегда, файл `logs/shorteditor.log` через `RotatingFileHandler` при заданном `log_dir`. Прежний `bot/logging.py` удалён, импорт переведён на `core.logging`.
+- `core/disk.py` — `DiskUsage`, `read_disk_usage()`, `format_bytes()` и `DiskGuard.check() -> bool`. Алерт отправляется, когда свободно строго меньше `notifications.disk_free_alert_percent`, не чаще `notifications.disk_alert_repeat_hours`; событие `disk_space_low` пишется в лог всегда при срабатывании. При возврате места выше порога троттлинг сбрасывается (событие `disk_space_recovered`), поэтому следующее падение снова даёт алерт. Если notifier упал, алерт не считается отправленным и повторяется на следующей проверке.
 
-Проверки S1-08: `python -m pytest -q` — 52 passed; `python -m ruff check .` — без замечаний; `python -c "import shorteditor.bot"` — успешно. В пересобранном образе проверено: `tzdata 2026.6` и `ZoneInfo("Europe/Moscow")` работают, `config.example.yaml` читается как `config.yaml`, все четыре job собираются с ожидаемыми типами расписаний, миграция даёт версии `[1, 2]` и таблицу `background_job_locks`, запуск без env по-прежнему даёт exit 1 с понятным сообщением.
+Конфиг: добавлен `notifications.disk_alert_repeat_hours` (по умолчанию 6, минимум 1), `disk_free_alert_percent` ограничен 1–100. `AppSettings.log_level` теперь `None` по умолчанию: уровень берётся из `LOG_LEVEL`, иначе из `logging.level`.
 
-Сборка образа: `docker build -t shorteditor:dev -f docker/Dockerfile .`, образ `shorteditor:dev` ~872 МБ, `python:3.11-slim-bookworm`.
+Приложение: `config.yaml` читается один раз на старте и **необязателен** — при отсутствии файла действуют дефолты `AppConfig` (это снимает падение в контейнере, где конфига нет). Логи с ротацией настраиваются сразу. Job `disk_check` регистрируется по умолчанию, поэтому планировщик теперь запускается всегда — с одним `disk_check`, если других jobs не передали; путь для проверки — каталог БД (`data/`).
 
-Проверено внутри образа:
-- `ffmpeg version 5.1.9-0+deb12u1`, фильтр `ass` (libass) присутствует.
-- `fc-list` видит Montserrat (style ExtraBold) и Inter (style Black).
-- `python -c "import shorteditor, aiosqlite, yaml, pydantic"` — ок.
-- `aiogram 3.34.0`, `python -c "import shorteditor.bot"` не запускает polling.
-- без обязательных env: понятное сообщение и exit code 1 (без трейсбека); с недействительным токеном — `Startup error: Telegram server says - Unauthorized`, exit 1.
-- `/status` на пустой БД отдаёт честные нули по всем статусам.
-- процесс под пользователем `app` (uid 1000), `/app/data` и `/models` доступны на запись.
-- `docker compose config --quiet` — ок.
-
-В образе и в Compose теперь единая команда запуска: `python -m shorteditor.bot` (заглушка `sleep infinity` убрана из `docker/Dockerfile` и `docker-compose.yml`).
-
-**Исправленный при проверке баг:** `fc-match "Montserrat ExtraBold"` возвращал `DejaVuSans.ttf`, то есть libass молча подменял бы шрифт. Добавлен `docker/fonts/fonts.conf` с fontconfig-алиасами; после пересборки `fc-match` возвращает `Montserrat-ExtraBold.ttf` и `Inter-Black.ttf`. Решение записано в D-018.
+Проверки S1-06: `python -m pytest -q` — 75 passed; `python -m ruff check .` — без замечаний; `python -c "import shorteditor.bot"` — успешно.
 
 ## 3. Что НЕ проверено
 
 - Реальное Telegram polling с действительным токеном и Telegram API не проверено.
-- Уведомление проверено только на fake notifier; доставка в Telegram и graceful shutdown с живым polling/токеном не проверены.
+- Доставка алерта о диске в Telegram проверена только на fake notifier; живая отправка не выполнялась.
+- Ротация проверена конфигурацией handler'а (`maxBytes`, `backupCount`), а не реальным переполнением файла под нагрузкой.
+- Троттлинг алертов живёт в памяти: после рестарта возможен повторный алерт раньше, чем через `disk_alert_repeat_hours`.
 - Поведение после `kill -9` проверено имитацией старого `claimed_at` и перезапуском worker, но не реальным убийством процесса.
-- SQLite advisory-lock проверен на одном процессе с подменой владельца и expiry в БД; конкурентная работа двух реальных процессов на одном файле SQLite не проверялась.
-- Реальные parser/digest/TTL/disk jobs пока не передаются приложению; проверены расписания, регистрация только переданных callback и lifecycle scheduler.
+- SQLite advisory-lock проверен на одном процессе; конкурентная работа двух реальных процессов на одном файле SQLite не проверялась.
+- Реальные parser/digest/TTL jobs пока не передаются приложению; проверены расписания и lifecycle scheduler.
 - Реальное кеширование модели Whisper: volume `/models` и `HF_HOME=/models` настроены, но модель ещё не скачивалась (появится в S3-03).
 - Рендер `.ass` через `ass=` — до S3-06 нечего проверять.
 - Запуск под пользователем `app` на Linux-сервере с bind-mount: на Docker Desktop Windows права маскируются, на Ubuntu возможны проблемы с владельцем `./data`. Проверить при первом деплое на сервер.
-- `config.yaml` не копируется в образ и не монтируется в Compose. Пока worker не включён (нет обработчиков), это не проявляется; до подключения конвейера в S2 нужно решить, как доставлять конфиг в контейнер (монтирование `./config.yaml` или копирование при сборке).
+- `config.yaml` не копируется в образ и не монтируется в Compose. Теперь это не роняет старт (дефолты), но настройки поведения из файла в контейнере не применяются — решить до подключения конвейера в S2.
+- Docker-образ после S1-06 не пересобирался: код ядра импортируется, но `logs/` в контейнере создаётся на лету; volume `logs` в Compose уже есть.
 
 ## 4. Следующий шаг
 
-**S1-06 · Логирование и диск-гард** (`docs/TASKS.md`).
-Открывать первым: `src/shorteditor/core/logging.py`, затем `src/shorteditor/core/disk.py`; периодическую проверку диска подключать к `disk_check` callback scheduler.
-Порядок этапа 1 сохраняется: S1-01 → S1-02 → S1-03 → S1-04 → S1-05 → S1-08 → S1-06 → S1-07.
+**S1-07 · CI: линт и тесты** (`docs/TASKS.md`).
+Открывать первым: новый `.github/workflows/ci.yml`; зависимости уже описаны в `pyproject.toml` (`.[test,dev]`), локальный прогон — 75 тестов, Ruff чистый.
+Порядок этапа 1: S1-01 → S1-02 → S1-03 → S1-04 → S1-05 → S1-08 → S1-06 → **S1-07**.
 
 ## 5. Публикация
 
-`main` запушен под аккаунтом `fedorshibeko8-bot`. Агент в worktree не может пушить: его credential — `gr0knemthiswor1d-lab`, ответ 403. Схема работы: реализация в worktree → мерж, проверка и push из `C:\Users\Lenovo\Desktop\shortEditor`.
+`main` запушен под аккаунтом `fowgsl123-dev` (приглашение в `fedorshibeko8-bot/shortEditor` с правами write принято 2026-11-27). Схема работы: ветка `task/<ID>-<кратко>` → PR → merge в `main`; журналы обновляются в том же PR.
 
 ## 6. Окружение
 
-- Windows, основной каталог `C:\Users\Lenovo\Desktop\shortEditor`.
-- Worktree Copilot: `C:\Users\Lenovo\.copilot\repos\copilot-worktrees\shortEditor\gr0knemthiswor1d-lab-super-train` (ветка `gr0knemthiswor1d-lab-shorteditor-project-task`).
-- Python 3.15.2 (пакет требует ≥ 3.11; образ на 3.11 — расхождение версий учитывать в тестах).
+- Windows, рабочий каталог `C:\Users\Vladimir\Desktop\нови проект\shortEditor`.
+- Python 3.12.10, виртуальное окружение `venv/` в корне (в git не попадает).
 - Docker Desktop + Engine 29.9.3, Compose CLI v5.7.0.
-- pytest 9.2.0, 52 теста.
+- pytest 9.2.0, 75 тестов; Ruff 0.11+.
 
 ## 7. Как проверить, что проект «жив»
 
 ```bash
 python -m pytest -q
+python -m ruff check .
 docker compose config --quiet
 docker build -t shorteditor:dev -f docker/Dockerfile .
 docker run --rm shorteditor:dev sh -c "ffmpeg -version | head -1; fc-match 'Montserrat ExtraBold'"
 docker run --rm shorteditor:dev; echo "exit=$?"
 ```
 
-Ожидаемо: 52 passed, конфиг валиден, ffmpeg 5.1.x, `Montserrat-ExtraBold.ttf`, последняя команда — `Startup error: required environment variables ...` и `exit=1`.
+Ожидаемо: 75 passed, Ruff чистый, конфиг валиден, ffmpeg 5.1.x, `Montserrat-ExtraBold.ttf`, последняя команда — `Startup error: required environment variables ...` и `exit=1`.
 
 ---
 
