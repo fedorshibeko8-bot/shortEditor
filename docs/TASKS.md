@@ -141,8 +141,8 @@
   - [x] unit-тесты на формат и на порог
 
 ### S1-07 · CI: линт и тесты
-- status: todo
-- owner: —
+- status: in_progress
+- owner: agent (OpenCode), 2026-11-27
 - depends on: S1-01
 - area: `.github/workflows/ci.yml`, `pyproject.toml`
 - acceptance:
