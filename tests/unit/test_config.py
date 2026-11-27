@@ -57,6 +57,9 @@ def test_config_defaults_match_example_values() -> None:
     assert config.queue.claim_ttl_minutes == 15
     assert config.queue.poll_interval_seconds == 5
     assert config.notifications.disk_check_minutes == 10
+    assert config.notifications.disk_alert_repeat_hours == 6
+    assert config.logging.rotation_mb == 50
+    assert config.logging.backups == 5
     assert config.transcribe.model == "medium"
     assert config.transcribe.llm_normalize.enabled is False
     assert config.subtitles.font_size == 68
@@ -128,6 +131,16 @@ def test_candidate_ttl_scan_interval_rejects_values_below_one() -> None:
 def test_disk_check_interval_rejects_values_below_one() -> None:
     with pytest.raises(ValidationError):
         AppConfig.model_validate({"notifications": {"disk_check_minutes": 0}})
+
+
+def test_disk_alert_repeat_rejects_values_below_one() -> None:
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate({"notifications": {"disk_alert_repeat_hours": 0}})
+
+
+def test_disk_free_alert_percent_rejects_out_of_range() -> None:
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate({"notifications": {"disk_free_alert_percent": 0}})
 
 
 def test_llm_normalize_defaults_to_disabled() -> None:

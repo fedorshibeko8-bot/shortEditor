@@ -90,6 +90,8 @@ notifications:
   daily_digest_at: "21:00"
   disk_free_alert_percent: 10
   disk_check_minutes: 10
+  # Повторный алерт о нехватке места не чаще, чем раз в N часов
+  disk_alert_repeat_hours: 6
 
 logging:
   level: INFO
