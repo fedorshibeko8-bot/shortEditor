@@ -20,7 +20,7 @@ Telegram-бот ищет Twitch-клипы ≤ 60 сек, передаёт их 
 | S1-08 — Планировщик фоновых задач | **done**, смержено и проверено |
 | S1-06 — Логирование и диск-гард | **done**, смержено и проверено |
 | S1-07 и далее | не начаты |
-| Тесты / lint | 75 passed; Ruff без замечаний |
+| Тесты / lint | 77 passed; Ruff без замечаний |
 
 Worker забирает только переданные ему статусы и обработчики; до появления реальных шагов конвейера он не запускается в приложении. Захват и увеличение `attempt_count` атомарны в `BEGIN IMMEDIATE`; TTL 15 минут очищается при старте и опросе очереди. Ошибки повторяются до `queue.max_attempts`, затем фиксируются как `failed` вместе с событием и одним уведомлением через интерфейс notifier.
 
@@ -28,14 +28,14 @@ S1-08 добавляет `core/scheduler.py`: asyncio-задачи с интер
 
 S1-06 добавляет два модуля ядра:
 
-- `core/logging.py` — `JsonFormatter` (поля `event`, `timestamp`, `level` + `clip_id`, `stage`, `duration_ms`, `error`; трейсбек уходит в `error`) и `configure_logging(level, log_dir, rotation_mb, backups)`: stdout всегда, файл `logs/shorteditor.log` через `RotatingFileHandler` при заданном `log_dir`. Прежний `bot/logging.py` удалён, импорт переведён на `core.logging`.
+- `core/logging.py` — `JsonFormatter` (обязательные `event`, `timestamp`, `level` плюс все дополнительные атрибуты записи: `clip_id`, `stage`, `duration_ms`, `error`, `job`, `reason` и т. п.; несериализуемые значения приводятся к строке, трейсбек уходит в `error`, `timestamp` — время создания записи) и `configure_logging(level, log_dir, rotation_mb, backups)`: stdout всегда, файл `logs/shorteditor.log` через `RotatingFileHandler` при заданном `log_dir`. Прежний `bot/logging.py` удалён, импорт переведён на `core.logging`.
 - `core/disk.py` — `DiskUsage`, `read_disk_usage()`, `format_bytes()` и `DiskGuard.check() -> bool`. Алерт отправляется, когда свободно строго меньше `notifications.disk_free_alert_percent`, не чаще `notifications.disk_alert_repeat_hours`; событие `disk_space_low` пишется в лог всегда при срабатывании. При возврате места выше порога троттлинг сбрасывается (событие `disk_space_recovered`), поэтому следующее падение снова даёт алерт. Если notifier упал, алерт не считается отправленным и повторяется на следующей проверке.
 
 Конфиг: добавлен `notifications.disk_alert_repeat_hours` (по умолчанию 6, минимум 1), `disk_free_alert_percent` ограничен 1–100. `AppSettings.log_level` теперь `None` по умолчанию: уровень берётся из `LOG_LEVEL`, иначе из `logging.level`.
 
 Приложение: `config.yaml` читается один раз на старте и **необязателен** — при отсутствии файла действуют дефолты `AppConfig` (это снимает падение в контейнере, где конфига нет). Логи с ротацией настраиваются сразу. Job `disk_check` регистрируется по умолчанию, поэтому планировщик теперь запускается всегда — с одним `disk_check`, если других jobs не передали; путь для проверки — каталог БД (`data/`).
 
-Проверки S1-06: `python -m pytest -q` — 75 passed; `python -m ruff check .` — без замечаний; `python -c "import shorteditor.bot"` — успешно.
+Проверки S1-06: `python -m pytest -q` — 77 passed; `python -m ruff check .` — без замечаний; `python -c "import shorteditor.bot"` — успешно.
 
 ## 3. Что НЕ проверено
 
@@ -55,7 +55,7 @@ S1-06 добавляет два модуля ядра:
 ## 4. Следующий шаг
 
 **S1-07 · CI: линт и тесты** (`docs/TASKS.md`).
-Открывать первым: новый `.github/workflows/ci.yml`; зависимости уже описаны в `pyproject.toml` (`.[test,dev]`), локальный прогон — 75 тестов, Ruff чистый.
+Открывать первым: новый `.github/workflows/ci.yml`; зависимости уже описаны в `pyproject.toml` (`.[test,dev]`), локальный прогон — 77 тестов, Ruff чистый.
 Порядок этапа 1: S1-01 → S1-02 → S1-03 → S1-04 → S1-05 → S1-08 → S1-06 → **S1-07**.
 
 ## 5. Публикация
@@ -67,7 +67,7 @@ S1-06 добавляет два модуля ядра:
 - Windows, рабочий каталог `C:\Users\Vladimir\Desktop\нови проект\shortEditor`.
 - Python 3.12.10, виртуальное окружение `venv/` в корне (в git не попадает).
 - Docker Desktop + Engine 29.9.3, Compose CLI v5.7.0.
-- pytest 9.2.0, 75 тестов; Ruff 0.11+.
+- pytest 9.2.0, 77 тестов; Ruff 0.11+.
 
 ## 7. Как проверить, что проект «жив»
 
@@ -80,7 +80,7 @@ docker run --rm shorteditor:dev sh -c "ffmpeg -version | head -1; fc-match 'Mont
 docker run --rm shorteditor:dev; echo "exit=$?"
 ```
 
-Ожидаемо: 75 passed, Ruff чистый, конфиг валиден, ffmpeg 5.1.x, `Montserrat-ExtraBold.ttf`, последняя команда — `Startup error: required environment variables ...` и `exit=1`.
+Ожидаемо: 77 passed, Ruff чистый, конфиг валиден, ffmpeg 5.1.x, `Montserrat-ExtraBold.ttf`, последняя команда — `Startup error: required environment variables ...` и `exit=1`.
 
 ---
 
