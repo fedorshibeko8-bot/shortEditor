@@ -19,7 +19,7 @@ Telegram-бот ищет Twitch-клипы ≤ 60 сек, передаёт их 
 | S1-05 — Worker-loop и очередь из БД | **done**, смержено и проверено |
 | S1-08 — Планировщик фоновых задач | **done**, смержено и проверено |
 | S1-06 — Логирование и диск-гард | **done**, смержено и проверено |
-| S1-07 — CI: линт и тесты | **done**, workflow добавлен, прогон на GitHub зелёный |
+| S1-07 — CI: линт и тесты | **blocked**: workflow готов (PR #2), Actions не создаёт прогоны |
 | S2-01 и далее | не начаты |
 | Тесты / lint | 75 passed; Ruff без замечаний |
 
@@ -38,7 +38,7 @@ S1-06 добавляет два модуля ядра:
 
 Проверки S1-06: `python -m pytest -q` — 75 passed; `python -m ruff check .` — без замечаний; `python -c "import shorteditor.bot"` — успешно.
 
-S1-07 добавляет `.github/workflows/ci.yml`: на `push` и `pull_request` в `main` запускается один job на `ubuntu-latest` с Python 3.11, кэшем pip (`actions/setup-python@v5`), установкой `pip install -e ".[test,dev]"`, отдельными шагами `ruff check .` и `pytest -q`, `timeout-minutes: 2`. Секретов и сервисов в workflow нет, `pyproject.toml` не менялся. Первый прогон на GitHub (PR) зелёный.
+S1-07 добавляет `.github/workflows/ci.yml`: на `push` и `pull_request` в `main` запускается один job на `ubuntu-latest` с Python 3.11, кэшем pip (`actions/setup-python@v5`), установкой `pip install -e ".[test,dev]"`, отдельными шагами `ruff check .` и `pytest -q`, `timeout-minutes: 2`. Секретов и сервисов в workflow нет, `pyproject.toml` не менялся. **Прогон на GitHub не стартовал:** после пуша ветки и открытия PR #2 API отдаёт 0 workflow runs, `gh pr checks` — «no checks reported»; файл на ветке виден (`contents/.github/workflows/ci.yml`), репозиторий публичный и не архивирован. Похоже, Actions выключены на уровне репозитория или аккаунта-владельца; у коллаборатора с write-доступом нет прав на `/actions/permissions` (403, нужен admin). Разблокировка: владелец `fedorshibeko8-bot` включает Actions в Settings → Actions → General, затем прогон запускается повторно.
 
 ## 3. Что НЕ проверено
 
@@ -55,12 +55,14 @@ S1-07 добавляет `.github/workflows/ci.yml`: на `push` и `pull_reques
 - `config.yaml` не копируется в образ и не монтируется в Compose. Теперь это не роняет старт (дефолты), но настройки поведения из файла в контейнере не применяются — решить до подключения конвейера в S2.
 - Docker-образ после S1-06 не пересобирался: код ядра импортируется, но `logs/` в контейнере создаётся на лету; volume `logs` в Compose уже есть.
 - CI проверен только на `ubuntu-latest` и Python 3.11; матрицы версий и Windows-раннера нет.
+- GitHub Actions в репозитории не запускает ни одного прогона (0 runs), поэтому workflow ещё не проверен на реальном раннере. Нужны права владельца на настройки Actions.
 
 ## 4. Следующий шаг
 
-**S2-01 · Клиент Twitch Helix** (`docs/TASKS.md`).
-Открывать первым: новый `src/shorteditor/parser/twitch.py`; зависимости `S1-01, S1-05` уже закрыты. Нужны app access token с автообновлением, `GET /clips` с пагинацией (`first`/`after`), бэкофф на 429 и моки в тестах. Клиент должен жить за интерфейсом, без прямых вызовов из бота.
-Этап 1 закрыт полностью: S1-01 → S1-02 → S1-03 → S1-04 → S1-05 → S1-08 → S1-06 → S1-07.
+**Разблокировать S1-07**, затем **S2-01 · Клиент Twitch Helix**.
+Для S1-07: владелец `fedorshibeko8-bot` включает Actions (Settings → Actions → General → Allow all actions), после чего перезапустить workflow в PR #2 и убедиться, что job зелёный.
+Для S2-01 открывать первым новый `src/shorteditor/parser/twitch.py`; зависимости `S1-01, S1-05` закрыты. Нужны app access token с автообновлением, `GET /clips` с пагинацией (`first`/`after`), бэкофф на 429 и моки в тестах. Клиент живёт за интерфейсом, без прямых вызовов из бота.
+Этап 1: S1-01 → S1-02 → S1-03 → S1-04 → S1-05 → S1-08 → S1-06 → S1-07 (blocked на настройках репозитория).
 
 ## 5. Публикация
 

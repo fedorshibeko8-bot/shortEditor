@@ -4,7 +4,7 @@
 Правила ведения — в `AGENTS.md` §3–§5. Здесь только статусы и факты; обсуждения — в `docs/DECISIONS.md`.
 
 **Легенда статусов:** `todo` · `in_progress` · `blocked` · `review` · `done`
-**Последнее обновление:** 2026-11-27 · S1-07 (CI) готова; этап 1 закрыт, следующий этап — S2-01.
+**Последнее обновление:** 2026-11-27 · S1-07: workflow готов, но GitHub Actions не запускает прогоны (0 runs) — нужен доступ владельца к настройкам Actions.
 
 ---
 
@@ -13,12 +13,12 @@
 | Этап | Задач | done | in_progress | blocked | todo |
 |---|---:|---:|---:|---:|---:|
 | 0. Каркас репозитория | 4 | 4 | 0 | 0 | 0 |
-| 1. Каркас приложения | 8 | 8 | 0 | 0 | 0 |
+| 1. Каркас приложения | 8 | 7 | 0 | 1 | 0 |
 | 2. Парсер | 5 | 0 | 0 | 0 | 5 |
 | 3. Конвейер | 10 | 0 | 0 | 0 | 10 |
 | 4. Публикация | 4 | 0 | 0 | 0 | 4 |
 | 5. Доработки | 4 | 0 | 0 | 0 | 4 |
-| **Итого** | **35** | **11** | **0** | **0** | **24** |
+| **Итого** | **35** | **10** | **0** | **1** | **24** |
 
 ---
 
@@ -141,12 +141,12 @@
   - [x] unit-тесты на формат и на порог
 
 ### S1-07 · CI: линт и тесты
-- status: done
-- owner: Copilot CLI, 2026-11-27; проверено agent (OpenCode)
+- status: blocked
+- owner: Copilot CLI, 2026-11-27; проверка agent (OpenCode)
 - depends on: S1-01
 - area: `.github/workflows/ci.yml`, `pyproject.toml`
 - acceptance:
-  - [x] ruff + pytest на push/PR, зелёный на пустом проекте
+  - [ ] ruff + pytest на push/PR, зелёный на пустом проекте — workflow добавлен в PR #2, но GitHub Actions не создаёт прогоны (0 runs); нужен доступ владельца к Settings → Actions
   - [x] кэш зависимостей, прогон ≤ 3 мин
 
 ### S1-08 · Планировщик фоновых задач
@@ -440,5 +440,5 @@
 2026-11-26 · S1-08 · Copilot CLI · добавлен asyncio-планировщик с интервальными/ежедневными расписаниями, graceful stop, SQLite lease-lock с expiry и heartbeat; добавлена миграция v2, конфиг скана TTL и необязательная регистрация jobs в приложении · проверено: 51 pytest passed, Ruff чистый, `import shorteditor.bot` без побочных эффектов; два отдельных процесса на одном SQLite-файле и доставка Telegram не проверялись · следующий шаг: S1-06 (логирование и диск-гард)
 2026-11-26 · merge/S1-08 + проверка · agent(merge/verify) · ветка `task/S1-08-scheduler` смержена в `main` (`5c0b682`); при ревью у disk_check появился собственный ключ `notifications.disk_check_minutes` вместо чужого периода TTL-скана, в зависимости добавлен `tzdata` (иначе `ZoneInfo(settings.tz)` падал бы на Windows без системной базы часовых поясов) · проверено: 52 pytest passed, Ruff без замечаний; образ пересобран, внутри контейнера работают `tzdata 2026.6` и `ZoneInfo("Europe/Moscow")`, `config.example.yaml` читается как `config.yaml`, все четыре job собираются, миграция даёт версии `[1, 2]` и таблицу `background_job_locks`, запуск без env — exit 1 · не проверено: конкурентная работа двух реальных процессов на одном SQLite, доставка уведомлений в Telegram, доставка `config.yaml` в контейнер (по-прежнему нет в образе/Compose) · следующий шаг: S1-06 (логирование и диск-гард)
 2026-11-27 · S1-06 · agent (OpenCode) · логирование вынесено из `bot/logging.py` в `core/logging.py`: JSON-формат с `clip_id`/`stage`/`duration_ms`/`error`, stdout плюс `RotatingFileHandler` по `logging.dir`/`rotation_mb`/`backups`; добавлен `core/disk.py` (`DiskGuard`: порог `notifications.disk_free_alert_percent`, троттлинг `disk_alert_repeat_hours`, событие `disk_space_low`, алерт через notifier, сброс троттлинга при восстановлении); `disk_check` регистрируется приложением по умолчанию, `config.yaml` на старте необязателен (дефолты), уровень логов — `LOG_LEVEL`, иначе `logging.level` · проверено: 75 pytest passed, Ruff чистый, `import shorteditor.bot` без побочных эффектов · не проверено: реальная отправка алерта в Telegram, ротация под нагрузкой, троттлинг между рестартами (живёт в памяти) · следующий шаг: S1-07 (CI: линт и тесты)
-2026-11-27 · S1-07 · Copilot CLI (реализация) + agent (OpenCode) проверка · добавлен `.github/workflows/ci.yml`: push и pull_request в `main`, `ubuntu-latest`, Python 3.11, кэш pip через `setup-python@v5`, шаги `ruff check .` и `pytest -q`, `timeout-minutes: 2`; `pyproject.toml` не менялся · проверено локально: 75 pytest passed, Ruff чистый; первый прогон workflow на GitHub (PR) зелёный · не проверено: матрица версий Python и Windows-раннер · следующий шаг: S2-01 (клиент Twitch Helix)
+2026-11-27 · S1-07 · Copilot CLI (реализация) + agent (OpenCode) проверка · добавлен `.github/workflows/ci.yml`: push и pull_request в `main`, `ubuntu-latest`, Python 3.11, кэш pip через `setup-python@v5`, шаги `ruff check .` и `pytest -q`, `timeout-minutes: 2`; `pyproject.toml` не менялся · проверено локально: 75 pytest passed, Ruff чистый; прогон на GitHub не стартовал — в репозитории 0 workflow runs при валидном файле на ветке и включённых Actions-правах у коллаборатора, нужен доступ владельца к Settings → Actions · не проверено: фактический прогон workflow · следующий шаг: разблокировать S1-07, затем S2-01 (клиент Twitch Helix)
 ```
