@@ -28,6 +28,8 @@ class AppSettings(BaseSettings):
 class ParserConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    http_timeout_seconds: float = Field(default=10, ge=1)
+    http_max_attempts: int = Field(default=3, ge=1, le=5)
     poll_interval_minutes: int = 15
     lookback_hours: int = 24
     max_duration_seconds: int = 60

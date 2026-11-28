@@ -1,8 +1,8 @@
 # HANDOFF — текущее состояние проекта
 
-**Обновлено:** 2026-11-27
+**Обновлено:** 2026-11-28
 **Обновил:** agent (OpenCode)
-**Ветка:** `main` (= `origin/main`); ветка `task/S1-07-ci` смержена
+**Ветка:** `main` (= `origin/main`); ветка `task/S2-01-twitch-client` смержена
 
 ## 1. Что это за проект
 
@@ -20,8 +20,9 @@ Telegram-бот ищет Twitch-клипы ≤ 60 сек, передаёт их 
 | S1-08 — Планировщик фоновых задач | **done**, смержено и проверено |
 | S1-06 — Логирование и диск-гард | **done**, смержено и проверено |
 | S1-07 — CI: линт и тесты | **done**, workflow добавлен, локально и на Python 3.11 проверен |
-| S2-01 и далее | не начаты |
-| Тесты / lint | 77 passed; Ruff без замечаний |
+| S2-01 — Клиент Twitch Helix | **done**, смержено и проверено |
+| S2-02 и далее | не начаты |
+| Тесты / lint | 91 passed; Ruff без замечаний |
 
 Worker забирает только переданные ему статусы и обработчики; до появления реальных шагов конвейера он не запускается в приложении. Захват и увеличение `attempt_count` атомарны в `BEGIN IMMEDIATE`; TTL 15 минут очищается при старте и опросе очереди. Ошибки повторяются до `queue.max_attempts`, затем фиксируются как `failed` вместе с событием и одним уведомлением через интерфейс notifier.
 
@@ -40,6 +41,8 @@ S1-06 добавляет два модуля ядра:
 
 S1-07 добавляет `.github/workflows/ci.yml`: push в `main`, `pull_request` и ручной запуск; один job на `ubuntu-latest` с Python 3.11 (как в `docker/Dockerfile`), кэш pip по `pyproject.toml`, `permissions: contents: read`, concurrency с отменой устаревших прогонов, таймаут 10 минут. Шаги: установка `.[test,dev]`, `python -m ruff check .`, `python -m pytest -q`. Тот же прогон выполнен в контейнере `python:3.11-slim` — 77 passed, Ruff чистый; `.github/workflows/ci.yml` распарсен и проверен по ключевым полям.
 
+S2-01 добавляет `parser/twitch.py`: app token cache с 60-секундным запасом и `asyncio.Lock`, один повтор после 401, ограниченные retry 429/5xx (`Retry-After`, затем `Ratelimit-Reset`, экспоненциальный бэкофф), typed mapping клипа и пагинация с пределами страниц/клипов. HTTP-настройки — `parser.http_timeout_seconds` (10) и `parser.http_max_attempts` (3), aiohttp добавлен явной зависимостью. Клиент не читает `.env` и не подключён к другим компонентам. Проверки: 91 passed локально и в `python:3.11-slim`, Ruff чистый, импорты без сети.
+
 ## 3. Что НЕ проверено
 
 - Реальное Telegram polling с действительным токеном и Telegram API не проверено.
@@ -49,6 +52,7 @@ S1-07 добавляет `.github/workflows/ci.yml`: push в `main`, `pull_reque
 - Поведение после `kill -9` проверено имитацией старого `claimed_at` и перезапуском worker, но не реальным убийством процесса.
 - SQLite advisory-lock проверен на одном процессе; конкурентная работа двух реальных процессов на одном файле SQLite не проверялась.
 - Реальные parser/digest/TTL jobs пока не передаются приложению; проверены расписания и lifecycle scheduler.
+- Реальный запрос к Twitch с боевыми ключами, фактический rate limit и поведение при длительном 429 не проверялись (реальный запрос не запускался и не нужен для unit-тестов).
 - Реальное кеширование модели Whisper: volume `/models` и `HF_HOME=/models` настроены, но модель ещё не скачивалась (появится в S3-03).
 - Рендер `.ass` через `ass=` — до S3-06 нечего проверять.
 - Запуск под пользователем `app` на Linux-сервере с bind-mount: на Docker Desktop Windows права маскируются, на Ubuntu возможны проблемы с владельцем `./data`. Проверить при первом деплое на сервер.
@@ -58,8 +62,8 @@ S1-07 добавляет `.github/workflows/ci.yml`: push в `main`, `pull_reque
 
 ## 4. Следующий шаг
 
-**S2-01 · Клиент Twitch Helix** (`docs/TASKS.md`).
-Открывать первым: карточку S2-01, затем `src/shorteditor/parser/` (каталог пока пуст) и `src/shorteditor/core/config.py` (`parser.*`). Этап 1 закрыт: S1-01 → S1-02 → S1-03 → S1-04 → S1-05 → S1-08 → S1-06 → S1-07.
+**S2-02 · Фильтры и дедупликация** (`docs/TASKS.md`).
+Открывать первым: карточку S2-02, затем `src/shorteditor/parser/twitch.py` (клиент уже готов) и `src/shorteditor/core/config.py` (`parser.*`). Этап 1 закрыт: S1-01 → S1-02 → S1-03 → S1-04 → S1-05 → S1-08 → S1-06 → S1-07; этап 2 начат с S2-01.
 
 ## 5. Публикация
 
@@ -70,7 +74,7 @@ S1-07 добавляет `.github/workflows/ci.yml`: push в `main`, `pull_reque
 - Windows, рабочий каталог `C:\Users\Lenovo\Desktop\shortEditor`.
 - Python 3.15.2 (пакет требует ≥ 3.11; прод-образ и CI — 3.11).
 - Docker Desktop + Engine 29.9.3, Compose CLI v5.7.0.
-- pytest 9.2.0, 77 тестов; Ruff 0.11+.
+- pytest 9.2.0, 91 тест; Ruff 0.11+.
 
 ## 7. Как проверить, что проект «жив»
 
@@ -83,7 +87,7 @@ docker run --rm shorteditor:dev sh -c "ffmpeg -version | head -1; fc-match 'Mont
 docker run --rm shorteditor:dev; echo "exit=$?"
 ```
 
-Ожидаемо: 77 passed, Ruff чистый, конфиг валиден, ffmpeg 5.1.x, `Montserrat-ExtraBold.ttf`, последняя команда — `Startup error: required environment variables ...` и `exit=1`.
+Ожидаемо: 91 passed, Ruff чистый, конфиг валиден, ffmpeg 5.1.x, `Montserrat-ExtraBold.ttf`, последняя команда — `Startup error: required environment variables ...` и `exit=1`.
 
 ---
 

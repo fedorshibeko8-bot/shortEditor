@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Telegram bot for Twitch clip editing and publishing"
 requires-python = ">=3.11"
 dependencies = [
+  "aiohttp>=3.9,<4",
   "aiosqlite>=0.20,<1",
   "aiogram>=3,<4",
   "pydantic>=2.11,<3",

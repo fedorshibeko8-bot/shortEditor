@@ -50,6 +50,8 @@ def test_config_defaults_match_example_values() -> None:
     example = load_config("config.example.yaml")
 
     assert config.parser.poll_interval_minutes == 15
+    assert config.parser.http_timeout_seconds == 10
+    assert config.parser.http_max_attempts == 3
     assert config.parser.candidate_ttl_scan_minutes == 10
     assert config.parser.max_duration_seconds == 60
     assert config.parser.candidate_ttl_hours == 24
@@ -126,6 +128,19 @@ def test_queue_poll_interval_rejects_values_below_one() -> None:
 def test_candidate_ttl_scan_interval_rejects_values_below_one() -> None:
     with pytest.raises(ValidationError):
         AppConfig.model_validate({"parser": {"candidate_ttl_scan_minutes": 0}})
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("http_timeout_seconds", 0.9),
+        ("http_max_attempts", 0),
+        ("http_max_attempts", 6),
+    ],
+)
+def test_parser_http_config_rejects_out_of_range(key: str, value: float) -> None:
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate({"parser": {key: value}})
 
 
 def test_disk_check_interval_rejects_values_below_one() -> None:

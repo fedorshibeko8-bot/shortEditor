@@ -2,6 +2,8 @@
 # Фильтры парсера редактируются админом из Telegram (/filters) без перезапуска.
 
 parser:
+  http_timeout_seconds: 10
+  http_max_attempts: 3
   poll_interval_minutes: 15
   lookback_hours: 24
   # Жёсткое ограничение ТЗ: берём только клипы не длиннее 60 секунд
